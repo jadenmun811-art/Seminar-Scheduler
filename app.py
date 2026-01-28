@@ -7,38 +7,46 @@ import json
 import os
 import asyncio
 import edge_tts
-import pytz # 한국 시간 처리를 위해 필수
+import pytz
 import streamlit.components.v1 as components
 
 # ==========================================
-# 1. 기본 설정 & CSS
+# 1. 기본 설정 & CSS (반응형 적용)
 # ==========================================
 st.set_page_config(layout="wide", page_title="Seminar Schedule (Web) 🐾")
 
-# [한국 시간 설정]
 KST = pytz.timezone('Asia/Seoul')
 
-# 상단 고정 바 & 스타일
 st.markdown(
     """
     <style>
+    /* [반응형] 상단 고정 시간바 */
     .fixed-time-bar {
         position: fixed; top: 3rem; left: 0; width: 100%;
         background-color: #ffffff; color: #FF5722; text-align: center;
-        padding: 0.5rem 0; font-size: 1.5rem; font-weight: bold;
+        padding: 0.5rem 0; font-weight: bold;
         z-index: 99999; border-bottom: 2px solid #FF5722;
         box-shadow: 0px 2px 5px rgba(0,0,0,0.1);
+        font-size: 1.5rem; /* 기본 크기 */
     }
+    
+    /* 화면이 좁아지면(태블릿/모바일/반반화면) 글자 크기 줄임 */
+    @media only screen and (max-width: 768px) {
+        .fixed-time-bar { font-size: 1.0rem; padding: 0.3rem 0; }
+        .block-container { padding-top: 4rem; padding-left: 1rem; padding-right: 1rem; }
+    }
+
     .block-container { padding-top: 5rem; }
     div.stButton > button { white-space: nowrap; width: 100%; }
     </style>
-    <div class="fixed-time-bar" id="live-clock">🕒 시간 확인 중...</div>
+    
+    <div class="fixed-time-bar" id="live-clock">🕒 시간 로딩중...</div>
     """,
     unsafe_allow_html=True
 )
 
 # ==========================================
-# 2. TTS 파일 생성 (재생은 JS가 함)
+# 2. TTS 파일 생성 (기존 유지)
 # ==========================================
 async def generate_tts_audio(text, filename="status_alert.mp3"):
     try:
@@ -47,7 +55,7 @@ async def generate_tts_audio(text, filename="status_alert.mp3"):
     except: pass
 
 # ==========================================
-# 3. 보관함 관리
+# 3. 보관함 관리 (기존 유지)
 # ==========================================
 HISTORY_FILE = "schedule_history.json"
 
@@ -64,10 +72,7 @@ def save_to_history(text):
     match = re.search(r'(\d{1,2})\.(\d{1,2})\s*\(([월화수목금토일])\)', first_line)
     
     if match:
-        month = match.group(1)
-        day = match.group(2)
-        weekday = match.group(3)
-        title = f"{month}월 {day}일 {weekday}요일"
+        title = f"{match.group(1)}월 {match.group(2)}일 {match.group(3)}요일"
     else:
         title = f"{first_line[:20]}... ({datetime.datetime.now(KST).strftime('%H:%M')})"
     
@@ -86,7 +91,7 @@ def set_input_text(text):
     st.session_state['input_text'] = text
 
 # ==========================================
-# 4. 데이터 파싱 (한국 시간 적용)
+# 4. 데이터 파싱 (기존 유지)
 # ==========================================
 def parse_time_str(time_str):
     try:
@@ -199,6 +204,9 @@ def extract_schedule(raw_text):
 # ==========================================
 st.title("✨ SEMINAR ZOO SCHEDULE 🐾")
 
+# 상단 시계 자리표시자
+st.markdown('<div class="fixed-time-bar" id="live-clock">🕒 시간 로딩중...</div>', unsafe_allow_html=True)
+
 if 'input_text' not in st.session_state: st.session_state['input_text'] = ""
 
 with st.sidebar:
@@ -233,20 +241,41 @@ timeline_data, js_events = extract_schedule(st.session_state['input_text'])
 
 if timeline_data:
     df = pd.DataFrame(timeline_data)
+    
+    # [차트 생성]
     fig = px.timeline(
-        df, x_start="Start", x_end="Finish", y="Task", color="Status", text="BarText", custom_data=["Description"], 
+        df, x_start="Start", x_end="Finish", y="Task", 
+        color="Status", text="BarText", custom_data=["Description"], 
         color_discrete_map={"종료": "#E0E0E0", "ON AIR": "#FF8A65", "셋팅중": "#FFF176", "셋팅임박": "#81C784", "대기(행사)": "#90CAF9", "대기(셋팅)": "#B0BEC5"},
         opacity=0.9
     )
-    fig.update_traces(textposition='inside', insidetextanchor='middle', hovertemplate="%{customdata[0]}<extra></extra>", hoverlabel=dict(bgcolor="white", font_size=14, font_family="Malgun Gothic", align="left"))
-    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#EEEEEE', title="", autorange="reversed", tickfont=dict(size=18, color="#333333", weight="bold"))
-    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#EEEEEE', title="", tickformat="%H:%M", dtick=1800000, side="top", tickfont=dict(size=14))
-    fig.update_layout(height=800, font=dict(size=14), showlegend=True, margin=dict(t=50, b=50, l=100), hoverlabel_align='left')
+    
+    # [반응형 레이아웃 설정]
+    fig.update_traces(
+        textposition='inside', 
+        insidetextanchor='middle', 
+        hovertemplate="%{customdata[0]}<extra></extra>", 
+        hoverlabel=dict(bgcolor="white", font_size=14, font_family="Malgun Gothic", align="left")
+    )
+    
+    # [핵심] automargin=True: 여백 자동 조절 (왼쪽 글씨 안 잘림)
+    # dtick 삭제: 화면이 좁아지면 Plotly가 알아서 시간 눈금 간격을 넓힘 (글자 겹침 방지)
+    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#EEEEEE', title="", autorange="reversed", tickfont=dict(size=16, color="#333333", weight="bold"), automargin=True)
+    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#EEEEEE', title="", side="top", tickfont=dict(size=14), automargin=True)
+    
+    fig.update_layout(
+        height=800, 
+        font=dict(size=14), 
+        showlegend=True,
+        margin=dict(t=50, b=50, l=10, r=10), # 좌우 여백을 최소화하고 automargin에 맡김
+        hoverlabel_align='left'
+    )
     
     now_dt_kst = datetime.datetime.now(KST)
     fig.add_vline(x=now_dt_kst, line_width=2, line_dash="solid", line_color="red")
     
-    st.plotly_chart(fig, use_container_width=True)
+    # [핵심] config={'responsive': True}: 컨테이너 크기에 맞춰 차트 리사이징
+    st.plotly_chart(fig, use_container_width=True, config={'responsive': True})
 else:
     st.info("👈 왼쪽 사이드바에 스케줄을 입력하고 '🥕 스케줄 불러오기'를 누르세요.")
 
