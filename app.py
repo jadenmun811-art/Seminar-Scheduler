@@ -11,7 +11,7 @@ import pytz
 import streamlit.components.v1 as components
 
 # ==========================================
-# 1. 기본 설정 & CSS
+# 1. 기본 설정 & CSS (기존 유지)
 # ==========================================
 st.set_page_config(layout="wide", page_title="Seminar Schedule (Web) 🐾")
 
@@ -20,7 +20,6 @@ KST = pytz.timezone('Asia/Seoul')
 st.markdown(
     """
     <style>
-    /* 상단 고정 시간바 */
     .fixed-time-bar {
         position: fixed; top: 3rem; left: 0; width: 100%;
         background-color: #ffffff; color: #FF5722; text-align: center;
@@ -36,14 +35,13 @@ st.markdown(
     .block-container { padding-top: 5rem; }
     div.stButton > button { white-space: nowrap; width: 100%; }
     </style>
-    
     <div class="fixed-time-bar" id="live-clock">🕒 시간 로딩중...</div>
     """,
     unsafe_allow_html=True
 )
 
 # ==========================================
-# 2. TTS 생성 및 보관함 (기존 유지)
+# 2. TTS 파일 생성 (기존 유지)
 # ==========================================
 async def generate_tts_audio(text, filename="status_alert.mp3"):
     try:
@@ -51,20 +49,29 @@ async def generate_tts_audio(text, filename="status_alert.mp3"):
         await communicate.save(filename)
     except: pass
 
+# ==========================================
+# 3. 보관함 관리 (SyntaxError 수정 & 콜백 추가)
+# ==========================================
 HISTORY_FILE = "schedule_history.json"
 
 def load_history():
     if os.path.exists(HISTORY_FILE):
-        try: with open(HISTORY_FILE, "r", encoding="utf-8") as f: return json.load(f)
-        except: return {}
+        # [수정] SyntaxError 해결: try/with 분리
+        try:
+            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return {}
     return {}
 
 def save_to_history(text):
     history = load_history()
     first_line = text.split('\n')[0].strip()
     match = re.search(r'(\d{1,2})\.(\d{1,2})\s*\(([월화수목금토일])\)', first_line)
-    if match: title = f"{match.group(1)}월 {match.group(2)}일 {match.group(3)}요일"
-    else: title = f"{first_line[:20]}... ({datetime.datetime.now(KST).strftime('%H:%M')})"
+    if match:
+        title = f"{match.group(1)}월 {match.group(2)}일 {match.group(3)}요일"
+    else:
+        title = f"{first_line[:20]}... ({datetime.datetime.now(KST).strftime('%H:%M')})"
     history[title] = text
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump(history, f, ensure_ascii=False, indent=4)
@@ -76,11 +83,12 @@ def delete_history(key):
         with open(HISTORY_FILE, "w", encoding="utf-8") as f:
             json.dump(history, f, ensure_ascii=False, indent=4)
 
+# [수정] StreamlitAPIException 해결용 콜백 함수
 def set_input_text(text):
     st.session_state['input_text'] = text
 
 # ==========================================
-# 3. 데이터 파싱 (기존 유지)
+# 4. 데이터 파싱 (기존 유지)
 # ==========================================
 def parse_time_str(time_str):
     try:
@@ -161,11 +169,12 @@ def extract_schedule(raw_text):
     return schedule_data, js_events
 
 # ==========================================
-# 4. 메인 화면 구성 (차트 설정 대폭 수정)
+# 5. 메인 화면 구성
 # ==========================================
 st.title("✨ SEMINAR ZOO SCHEDULE 🐾")
-st.markdown('<div class="fixed-time-bar" id="live-clock">🕒 시간 불러오는 중...</div>', unsafe_allow_html=True)
+st.markdown('<div class="fixed-time-bar" id="live-clock">🕒 시간 로딩중...</div>', unsafe_allow_html=True)
 
+# [중요] 세션 초기화가 사이드바보다 먼저 있어야 함
 if 'input_text' not in st.session_state: st.session_state['input_text'] = ""
 
 with st.sidebar:
@@ -185,6 +194,7 @@ with st.sidebar:
     history = load_history()
     for key in sorted(history.keys(), reverse=True):
         with st.expander(key):
+            # [수정] 콜백 함수(set_input_text) 사용으로 에러 방지
             st.button("불러오기", key=f"load_{key}", on_click=set_input_text, args=(history[key],))
             if st.button("삭제", key=f"del_{key}"): delete_history(key); st.rerun()
 
@@ -206,39 +216,24 @@ if timeline_data:
         hoverlabel=dict(bgcolor="white", font_size=14, font_family="Malgun Gothic", align="left")
     )
     
-    # [차트 범위 고정] 오전 7시 ~ 밤 10시
     today_str = datetime.datetime.now(KST).strftime("%Y-%m-%d")
     range_x_start = f"{today_str} 07:00"
     range_x_end = f"{today_str} 22:00"
 
-    # [핵심 수정] X축 설정 강화 (시간 강제 표시)
     fig.update_xaxes(
         showgrid=True, gridwidth=1, gridcolor='#EEEEEE', title="", 
-        tickformat="%H:%M", 
-        dtick=1800000, # ★ 30분 단위 강제 (이게 있어야 좁아도 나옴)
-        tickmode='linear', # ★ 선형 모드로 강제 설정 (숨김 방지)
-        tickangle=-45, # ★ 45도 회전
-        side="top", 
-        tickfont=dict(size=14, color="#333333", weight="bold"),
-        range=[range_x_start, range_x_end], # ★ 범위 고정
-        automargin=True
+        tickformat="%H:%M", dtick=1800000, tickmode='linear', tickangle=-45, 
+        side="top", tickfont=dict(size=14, color="#333333", weight="bold"),
+        range=[range_x_start, range_x_end], automargin=True
     )
     
-    # Y축 설정 (글자 안 짤리게)
     fig.update_yaxes(
         showgrid=True, gridwidth=1, gridcolor='#EEEEEE', title="", 
-        autorange="reversed", 
-        tickfont=dict(size=16, color="#333333", weight="bold"), 
+        autorange="reversed", tickfont=dict(size=16, color="#333333", weight="bold"), 
         automargin=True
     )
     
-    fig.update_layout(
-        height=800, 
-        font=dict(size=14), 
-        showlegend=True,
-        margin=dict(t=80, b=50, l=10, r=10), # 상단 여백 확보
-        hoverlabel_align='left'
-    )
+    fig.update_layout(height=800, font=dict(size=14), showlegend=True, margin=dict(t=80, b=50, l=10, r=10), hoverlabel_align='left')
     
     now_dt_kst = datetime.datetime.now(KST)
     fig.add_vline(x=now_dt_kst, line_width=2, line_dash="solid", line_color="red")
@@ -248,7 +243,7 @@ else:
     st.info("👈 왼쪽 사이드바에 스케줄을 입력하고 '🥕 스케줄 불러오기'를 누르세요.")
 
 # ==========================================
-# 5. JavaScript (시계, TTS, 리로드)
+# 6. JavaScript (5분 전 TTS 수정됨)
 # ==========================================
 js_events_json = json.dumps(js_events)
 
@@ -261,22 +256,23 @@ components.html(
         function updateSystem() {{
             const now = new Date();
             
-            // 시계
             const timeString = now.toLocaleTimeString('ko-KR', {{ hour12: false }});
             const dateString = now.toLocaleDateString('ko-KR', {{ month: 'long', day: 'numeric', weekday: 'long' }});
             const clockElement = window.parent.document.getElementById('live-clock');
             if (clockElement) {{ clockElement.innerText = "🕒 " + dateString + " " + timeString; }}
 
-            // TTS
             events.forEach(event => {{
                 const setupTime = new Date(event.setup_ts);
                 const diffMs = setupTime - now;
                 const diffMins = diffMs / 1000 / 60; 
 
+                // [수정] 5분 전 알림 (4.9 ~ 5.1분 사이)
                 if (diffMins >= 4.9 && diffMins <= 5.1) {{
                     const key = event.location + "_5min";
                     if (!announced.has(key)) {{ speak(event.location + ", 셋팅 시작 5분 전입니다."); announced.add(key); }}
                 }}
+                
+                // 정각 알림
                 if (diffMins >= -0.1 && diffMins <= 0.1) {{
                     const key = event.location + "_exact";
                     if (!announced.has(key)) {{ speak(event.location + ", 셋팅 시작 시간입니다."); announced.add(key); }}
