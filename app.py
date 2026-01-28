@@ -11,31 +11,43 @@ import pytz
 import streamlit.components.v1 as components
 
 # ==========================================
-# 1. 기본 설정 & CSS (기존 유지)
+# 1. 기본 설정 & CSS (상단바 크기 축소)
 # ==========================================
 st.set_page_config(layout="wide", page_title="Seminar Schedule (Web) 🐾")
 
 KST = pytz.timezone('Asia/Seoul')
 
+# [핵심] 파이썬에서 미리 현재 시간을 계산 (즉시 표시용)
+now_init = datetime.datetime.now(KST)
+wkdays = ["월", "화", "수", "목", "금", "토", "일"]
+# 예: 🕒 1월 28일 화요일 15:30:00
+init_time_str = f"🕒 {now_init.month}월 {now_init.day}일 {wkdays[now_init.weekday()]}요일 {now_init.strftime('%H:%M:%S')}"
+
 st.markdown(
-    """
+    f"""
     <style>
-    .fixed-time-bar {
+    /* 상단 고정 시간바 (높이 축소) */
+    .fixed-time-bar {{
         position: fixed; top: 3rem; left: 0; width: 100%;
         background-color: #ffffff; color: #FF5722; text-align: center;
-        padding: 0.5rem 0; font-weight: bold;
+        padding: 0.1rem 0; /* 패딩 대폭 축소 */
+        font-weight: bold;
         z-index: 99999; border-bottom: 2px solid #FF5722;
-        box-shadow: 0px 2px 5px rgba(0,0,0,0.1);
-        font-size: 1.5rem;
-    }
-    @media only screen and (max-width: 768px) {
-        .fixed-time-bar { font-size: 1.1rem; padding: 0.4rem 0; }
-        .block-container { padding-top: 4rem; padding-left: 0.5rem; padding-right: 0.5rem; }
-    }
-    .block-container { padding-top: 5rem; }
-    div.stButton > button { white-space: nowrap; width: 100%; }
+        box-shadow: 0px 1px 3px rgba(0,0,0,0.1);
+        font-size: 1.1rem; /* 글자 크기 축소 */
+    }}
+    
+    /* 모바일 대응 */
+    @media only screen and (max-width: 768px) {{
+        .fixed-time-bar {{ font-size: 0.9rem; padding: 0.2rem 0; }}
+        .block-container {{ padding-top: 3.5rem; padding-left: 0.5rem; padding-right: 0.5rem; }}
+    }}
+
+    .block-container {{ padding-top: 4.5rem; }} /* 본문 여백도 줄임 */
+    div.stButton > button {{ white-space: nowrap; width: 100%; }}
     </style>
-    <div class="fixed-time-bar" id="live-clock">🕒 시간 로딩중...</div>
+    
+    <div class="fixed-time-bar" id="live-clock">{init_time_str}</div>
     """,
     unsafe_allow_html=True
 )
@@ -50,18 +62,15 @@ async def generate_tts_audio(text, filename="status_alert.mp3"):
     except: pass
 
 # ==========================================
-# 3. 보관함 관리 (SyntaxError 수정 & 콜백 추가)
+# 3. 보관함 관리 (기존 유지)
 # ==========================================
 HISTORY_FILE = "schedule_history.json"
 
 def load_history():
     if os.path.exists(HISTORY_FILE):
-        # [수정] SyntaxError 해결: try/with 분리
         try:
-            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            return {}
+            with open(HISTORY_FILE, "r", encoding="utf-8") as f: return json.load(f)
+        except: return {}
     return {}
 
 def save_to_history(text):
@@ -83,7 +92,6 @@ def delete_history(key):
         with open(HISTORY_FILE, "w", encoding="utf-8") as f:
             json.dump(history, f, ensure_ascii=False, indent=4)
 
-# [수정] StreamlitAPIException 해결용 콜백 함수
 def set_input_text(text):
     st.session_state['input_text'] = text
 
@@ -172,9 +180,8 @@ def extract_schedule(raw_text):
 # 5. 메인 화면 구성
 # ==========================================
 st.title("✨ SEMINAR ZOO SCHEDULE 🐾")
-st.markdown('<div class="fixed-time-bar" id="live-clock">🕒 시간 로딩중...</div>', unsafe_allow_html=True)
+# 상단바 HTML은 위에서 CSS와 함께 삽입됨 (id="live-clock")
 
-# [중요] 세션 초기화가 사이드바보다 먼저 있어야 함
 if 'input_text' not in st.session_state: st.session_state['input_text'] = ""
 
 with st.sidebar:
@@ -194,7 +201,6 @@ with st.sidebar:
     history = load_history()
     for key in sorted(history.keys(), reverse=True):
         with st.expander(key):
-            # [수정] 콜백 함수(set_input_text) 사용으로 에러 방지
             st.button("불러오기", key=f"load_{key}", on_click=set_input_text, args=(history[key],))
             if st.button("삭제", key=f"del_{key}"): delete_history(key); st.rerun()
 
@@ -243,7 +249,7 @@ else:
     st.info("👈 왼쪽 사이드바에 스케줄을 입력하고 '🥕 스케줄 불러오기'를 누르세요.")
 
 # ==========================================
-# 6. JavaScript (5분 전 TTS 수정됨)
+# 6. JavaScript (시계 1초 갱신, TTS 5분전)
 # ==========================================
 js_events_json = json.dumps(js_events)
 
@@ -256,23 +262,25 @@ components.html(
         function updateSystem() {{
             const now = new Date();
             
+            // 시계
             const timeString = now.toLocaleTimeString('ko-KR', {{ hour12: false }});
             const dateString = now.toLocaleDateString('ko-KR', {{ month: 'long', day: 'numeric', weekday: 'long' }});
             const clockElement = window.parent.document.getElementById('live-clock');
+            // 파이썬이 넣어준 초기값을 JS가 1초 뒤부터 이어받음
             if (clockElement) {{ clockElement.innerText = "🕒 " + dateString + " " + timeString; }}
 
+            // TTS
             events.forEach(event => {{
                 const setupTime = new Date(event.setup_ts);
                 const diffMs = setupTime - now;
                 const diffMins = diffMs / 1000 / 60; 
 
-                // [수정] 5분 전 알림 (4.9 ~ 5.1분 사이)
+                // 5분 전 (4.9~5.1분)
                 if (diffMins >= 4.9 && diffMins <= 5.1) {{
                     const key = event.location + "_5min";
                     if (!announced.has(key)) {{ speak(event.location + ", 셋팅 시작 5분 전입니다."); announced.add(key); }}
                 }}
-                
-                // 정각 알림
+                // 정각 (-0.1~0.1분)
                 if (diffMins >= -0.1 && diffMins <= 0.1) {{
                     const key = event.location + "_exact";
                     if (!announced.has(key)) {{ speak(event.location + ", 셋팅 시작 시간입니다."); announced.add(key); }}
@@ -288,7 +296,6 @@ components.html(
             }}
         }}
 
-        updateSystem();
         setInterval(updateSystem, 1000);
         setTimeout(function() {{
             window.parent.document.querySelector(".stApp").dispatchEvent(new KeyboardEvent("keydown", {{key: "r", keyCode: 82, ctrlKey: false, shiftKey: false, altKey: false, metaKey: false, bubbles: true}})); 
