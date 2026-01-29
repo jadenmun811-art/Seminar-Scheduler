@@ -11,7 +11,7 @@ import pytz
 import streamlit.components.v1 as components
 
 # ==========================================
-# 1. 기본 설정 & CSS (배민 도현 + 당근 스타일 버튼)
+# 1. 기본 설정 & CSS (배민 도현 + 다크 모드)
 # ==========================================
 st.set_page_config(layout="wide", page_title="Seminar Schedule (Web) 🐾")
 
@@ -29,40 +29,43 @@ st.markdown(
 
     html, body, [class*="css"] {{
         font-family: 'Do Hyeon', sans-serif !important;
+        background-color: #1E1E1E !important; /* 전체 다크 배경 */
+        color: white !important;
     }}
 
-    /* 2. 상단 헤더 (키치한 느낌) */
+    /* 2. 상단 헤더 (다크 테마) */
     .header-container {{
         display: flex; justify-content: center; align-items: center; gap: 20px; 
         padding: 1.5rem 0; margin-bottom: 2rem; 
-        background-color: #FFFFFF; 
-        border-bottom: 4px solid #333333; /* 굵은 검은 선 */
+        background-color: #2C2C2C; /* 헤더 배경 */
+        border-bottom: 4px solid #555; 
+        border-radius: 15px;
     }}
     .main-title {{ 
         font-size: 3rem; 
-        color: #333333; 
+        color: #FFFFFF; 
         margin: 0; 
-        text-shadow: 2px 2px 0px #EEEEEE; /* 팝아트 그림자 */
+        text-shadow: 2px 2px 0px #000000;
     }}
     .live-clock {{ 
         font-size: 2rem; 
-        color: #F94680; /* 핫핑크 */
-        background: #FFF0F5;
+        color: #FFFFFF; 
+        background: #333;
         padding: 5px 15px;
-        border: 2px solid #F94680;
+        border: 2px solid #777;
         border-radius: 15px;
     }} 
 
-    /* 3. "당근" 스타일 버튼 커스텀 (보내주신 사진 참고) */
+    /* 3. "당근" 스타일 버튼 (유지) */
     div.stButton > button {{
-        background-color: #FF6E56 !important; /* 당근색 */
+        background-color: #FF6E56 !important;
         color: white !important;
         font-family: 'Do Hyeon', sans-serif !important;
         font-size: 24px !important;
         border: none !important;
         border-radius: 12px !important;
         padding: 10px 20px !important;
-        box-shadow: 0px 4px 0px #C94530 !important; /* 입체 버튼 효과 */
+        box-shadow: 0px 4px 0px #C94530 !important;
         transition: all 0.1s;
         width: 100%;
     }}
@@ -71,12 +74,9 @@ st.markdown(
         box-shadow: 0px 0px 0px #C94530 !important;
     }}
 
-    /* 모바일 대응 */
-    @media only screen and (max-width: 768px) {{
-        .header-container {{ flex-direction: column; gap: 10px; }}
-        .main-title {{ font-size: 2rem; }}
-        .live-clock {{ font-size: 1.5rem; }}
-        .block-container {{ padding-top: 1rem; }}
+    /* 사이드바 등 텍스트 컬러 조정 */
+    .stMarkdown, .stText, h1, h2, h3 {{
+        color: white !important;
     }}
     
     .block-container {{ padding-top: 2rem; }}
@@ -129,7 +129,7 @@ def set_input_text(text):
     st.session_state['input_text'] = text
 
 # ==========================================
-# 3. 데이터 파싱
+# 3. 데이터 파싱 및 색상 로직
 # ==========================================
 def parse_time_str(time_str):
     try:
@@ -143,15 +143,20 @@ def parse_time_str(time_str):
     except: return None
     return None
 
-# [수정] 트로피컬 스플래시 (Tropical Splash) 팔레트 적용
-# 사진에서 추출한 쨍한 색감들
-COLOR_PALETTE = {
-    "종료": "#E0E0E0",        # 회색
-    "ON AIR": "#F94680",      # Hot Pink (사진 참고) - 행사 진행중
-    "셋팅중": "#FEBD17",      # Yellow (사진 참고) - 준비중
-    "셋팅임박": "#FEBD17",    # Yellow
-    "대기(행사)": "#1BC0BA",  # Teal/Mint (사진 참고) - 대기
-    "대기(셋팅)": "#D1D1D1"   # 짙은 회색
+# [핵심] 장소별 색상 정의 (사진 참고)
+# Main: 본행사 색상 / Setup: 셋팅 색상 (연하게)
+COLORS = {
+    "BLUE_MAIN": "#3D64FF",   # 파랑 (소회의실)
+    "BLUE_SETUP": "#8BA4FF",
+    
+    "ORANGE_MAIN": "#FFA000", # 노랑/주황 (세미나실)
+    "ORANGE_SETUP": "#FFCC80",
+    
+    "GREEN_MAIN": "#46E377",  # 연두 (간담회의실)
+    "GREEN_SETUP": "#B9F6CA",
+    
+    "GRAY_MAIN": "#9E9E9E",   # 기타
+    "GRAY_SETUP": "#E0E0E0"
 }
 
 def shorten_location(loc_name):
@@ -159,6 +164,17 @@ def shorten_location(loc_name):
     if match:
         return f"{match.group(1)}{match.group(2)}" 
     return loc_name[:2]
+
+# [핵심] 장소 이름에 따라 색상 결정하는 함수
+def get_color_for_location(loc_name, is_setup):
+    if "소" in loc_name: # 소회의실 -> 파랑
+        return COLORS["BLUE_SETUP"] if is_setup else COLORS["BLUE_MAIN"]
+    elif "세" in loc_name: # 세미나실 -> 노랑/주황
+        return COLORS["ORANGE_SETUP"] if is_setup else COLORS["ORANGE_MAIN"]
+    elif "간" in loc_name: # 간담회의실 -> 연두
+        return COLORS["GREEN_SETUP"] if is_setup else COLORS["GREEN_MAIN"]
+    else:
+        return COLORS["GRAY_SETUP"] if is_setup else COLORS["GRAY_MAIN"]
 
 def extract_schedule(raw_text):
     schedule_data = []
@@ -169,7 +185,7 @@ def extract_schedule(raw_text):
     for section in sections:
         if not section.strip(): continue
         lines = [l.strip() for l in section.strip().split('\n') if l.strip()]
-        data = { "date_obj": today_kst, "start": None, "setup": None, "end": None, "location": "미정", "staff": "", "office": "", "aide": "", "title": "", "simple_remark": "일반", "status": "대기", "color": "#90CAF9" }
+        data = { "date_obj": today_kst, "start": None, "setup": None, "end": None, "location": "미정", "staff": "", "office": "", "aide": "", "title": "", "simple_remark": "일반" }
         
         if len(lines) > 0:
             line1 = lines[0]
@@ -216,24 +232,25 @@ def extract_schedule(raw_text):
                 elif setup_dt <= now < start_dt: setup_status = "셋팅중"; main_status = "대기(행사)";
                 elif (setup_dt - datetime.timedelta(minutes=30)) <= now < setup_dt: setup_status = "셋팅임박";
                 
-                setup_color = COLOR_PALETTE.get(setup_status, "#90CAF9")
-                main_color = COLOR_PALETTE.get(main_status, "#90CAF9")
+                # [수정] 장소 이름 기반 색상 할당
+                setup_color = get_color_for_location(data['location'], is_setup=True)
+                main_color = get_color_for_location(data['location'], is_setup=False)
 
                 broadcast_style = "color: #D32F2F; font-weight: bold;" if "생중계" in data['simple_remark'] else "color: #388E3C; font-weight: bold;"
                 
-                desc = f"""<div style='text-align: left; font-family: "Do Hyeon", sans-serif; font-size: 14px; line-height: 1.6;'>
+                desc = f"""<div style='text-align: left; font-family: "Do Hyeon", sans-serif; font-size: 14px; line-height: 1.6; color: black;'>
                     <span style='color: #F94680; font-size: 16px;'>🐻 [{data['location']}]</span><br>
-                    <span style='color: #333;'>♥ 의원실: {data['office']}</span><br>
-                    <span style='color: #333;'>📝 제　목: {data['title']}</span><br>
-                    <span style='color: #333;'>⏰ 시　간: {setup_dt.strftime('%H:%M')} (셋팅) ~ {start_dt.strftime('%H:%M')} (시작)</span><br>
-                    <span style='color: #333;'>👤 담당자: {data['staff']}</span><br>
+                    <span>♥ 의원실: {data['office']}</span><br>
+                    <span>📝 제　목: {data['title']}</span><br>
+                    <span>⏰ 시　간: {setup_dt.strftime('%H:%M')} (셋팅) ~ {start_dt.strftime('%H:%M')} (시작)</span><br>
+                    <span>👤 담당자: {data['staff']}</span><br>
                     <span style='{broadcast_style}'>📺 방　송: {data['simple_remark']}</span></div>"""
 
                 if "," in data['staff']: staff_display = data['staff'].replace(",", "<br>")
                 else: staff_display = data['staff']
 
-                schedule_data.append(dict(Task=data['location'], Start=setup_dt, Finish=start_dt, Resource="셋팅", Status=setup_status, Color=setup_color, BarText="SET", Description=desc, Opacity=1.0))
-                schedule_data.append(dict(Task=data['location'], Start=start_dt, Finish=end_dt, Resource="본행사", Status=main_status, Color=main_color, BarText=staff_display, Description=desc, Opacity=1.0))
+                schedule_data.append(dict(Task=data['location'], Start=setup_dt, Finish=start_dt, Resource="셋팅", Status=setup_status, ColorCode=setup_color, BarText="SET", Description=desc, Opacity=1.0))
+                schedule_data.append(dict(Task=data['location'], Start=start_dt, Finish=end_dt, Resource="본행사", Status=main_status, ColorCode=main_color, BarText=staff_display, Description=desc, Opacity=1.0))
                 
                 js_events.append({ "location": data['location'], "setup_ts": setup_dt.timestamp() * 1000, "staff": data['staff'] })
             except Exception: continue
@@ -275,20 +292,21 @@ if timeline_data:
     df['ShortTask'] = df['Task'].apply(shorten_location)
     dynamic_height = max(800, len(df['Task'].unique()) * 80 + 200)
 
+    # [수정] 색상을 직접 ColorCode 컬럼에서 가져옴
     fig = px.timeline(
         df, x_start="Start", x_end="Finish", y="ShortTask", 
-        color="Status", text="BarText", custom_data=["Description"], 
-        color_discrete_map=COLOR_PALETTE,
-        opacity=1.0 # 쨍한 색감
+        text="BarText", custom_data=["Description"], 
+        opacity=1.0 
     )
     
-    # [수정] POP 스타일 적용: 굵은 테두리(3px) + 쨍한 글씨
+    # [핵심] Traces 업데이트 (색상 강제 적용)
     fig.update_traces(
+        marker_color=df['ColorCode'], # 데이터프레임의 색상 코드 사용
         textposition='inside', insidetextanchor='middle', 
         hovertemplate="%{customdata[0]}<extra></extra>", 
-        hoverlabel=dict(font_size=16, font_family="Do Hyeon", align="left"),
-        textfont=dict(size=30, family="Do Hyeon", color="black"), # 담당자 이름 (30px, 검은색)
-        marker=dict(line=dict(width=3, color='black')) # [핵심] 만화 같은 굵은 테두리
+        hoverlabel=dict(font_size=16, font_family="Do Hyeon", align="left", bgcolor="white"),
+        textfont=dict(size=30, family="Do Hyeon", color="black"), 
+        marker=dict(line=dict(width=0)) # 테두리 제거 (사진처럼 깔끔하게)
     )
     
     today_str = datetime.datetime.now(KST).strftime("%Y-%m-%d")
@@ -296,52 +314,70 @@ if timeline_data:
     range_x_end = f"{today_str} 21:00"
 
     fig.update_xaxes(
-        showgrid=False, 
-        showline=True, linewidth=3, linecolor='black', mirror=True, 
-        ticks="inside", tickwidth=3, tickcolor='black', ticklen=10, 
+        showgrid=True, gridwidth=1, gridcolor='#444', # 어두운 그리드
+        showline=True, linewidth=1, linecolor='white', mirror=True, 
+        ticks="inside", tickwidth=2, tickcolor='white', ticklen=5, 
         title="", 
         tickformat="%H:%M", 
         dtick=3600000, 
         tickmode='linear', tickangle=0, 
         side="top", 
-        tickfont=dict(size=24, family="Do Hyeon", color="black"), 
+        tickfont=dict(size=24, family="Do Hyeon", color="white"), # 흰색 글씨
         range=[range_x_start, range_x_end], automargin=True
     )
     
     fig.update_yaxes(
-        showgrid=False, 
-        showline=True, linewidth=3, linecolor='black', mirror=True,
-        showticklabels=True, 
-        tickfont=dict(size=45, family="Do Hyeon", color="black"), # 장소 이름 (45px, 대폭 확대)
+        showgrid=True, gridwidth=1, gridcolor='#444',
+        showline=False,
+        showticklabels=False, # 라벨 끄고 어노테이션으로 대체
         title="", 
         autorange="reversed", 
         automargin=True
     )
     
+    # [핵심] 좌측 장소 이름 + 컬러바(Color Bar) 그리기
     unique_tasks = df['ShortTask'].unique()
-    for i in range(len(unique_tasks)):
-        fig.add_hline(y=i + 0.5, line_width=2, line_color="black")
+    for i, short_task in enumerate(unique_tasks):
+        # 해당 장소의 메인 색상 찾기
+        loc_main_color = get_color_for_location(short_task, is_setup=False)
+        
+        # 1. 컬러바 (사각형 Shape) - 이름 왼쪽에 배치
+        fig.add_shape(
+            type="rect",
+            xref="paper", yref="y",
+            x0=-0.005, x1=0, # 차트 바로 왼쪽 붙여서
+            y0=i-0.4, y1=i+0.4,
+            fillcolor=loc_main_color,
+            line=dict(width=0),
+        )
+
+        # 2. 장소 이름 (컬러바 왼쪽)
+        fig.add_annotation(
+            x=-0.015, xref="paper", y=i, yref="y",
+            text=f"<b>{short_task}</b>", showarrow=False,
+            font=dict(size=45, color="white", family="Do Hyeon"), # 흰색 글씨 (다크모드)
+            align="right"
+        )
 
     fig.update_layout(
         height=dynamic_height, 
         font=dict(size=14, family="Do Hyeon"), 
-        showlegend=True,
-        paper_bgcolor='#FFFFFF', 
-        plot_bgcolor='#F9F9F9', # 아주 연한 회색 배경 (차트 영역 구분)
+        showlegend=False, # 레전드 숨김 (색상이 장소별로 다르므로)
+        paper_bgcolor='#1E1E1E', # 전체 배경 어둡게
+        plot_bgcolor='#1E1E1E',  # 차트 배경 어둡게
         margin=dict(t=80, b=100, l=180, r=10), 
         hoverlabel_align='left',
-        legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5, font=dict(size=18))
     )
     
     now_dt_kst = datetime.datetime.now(KST)
-    fig.add_vline(x=now_dt_kst, line_width=3, line_dash="solid", line_color="red")
+    fig.add_vline(x=now_dt_kst, line_width=2, line_dash="dash", line_color="white") # 흰색 점선
     
     st.plotly_chart(fig, use_container_width=True, config={'responsive': True})
 else:
     st.info("👈 왼쪽 사이드바에 스케줄을 입력하고 '🥕 스케줄 불러오기'를 누르세요.")
 
 # ==========================================
-# 5. JavaScript (기존 TTS 유지)
+# 5. JavaScript (기존 기능 유지)
 # ==========================================
 js_events_json = json.dumps(js_events)
 js_tts_enabled = str(tts_enabled).lower()
