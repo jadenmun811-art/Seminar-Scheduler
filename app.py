@@ -11,7 +11,7 @@ import pytz
 import streamlit.components.v1 as components
 
 # ==========================================
-# 1. 기본 설정 & CSS
+# 1. 기본 설정 & CSS (타이틀/시계 통합, 배경색)
 # ==========================================
 st.set_page_config(layout="wide", page_title="Seminar Schedule (Web) 🐾")
 
@@ -20,31 +20,55 @@ KST = pytz.timezone('Asia/Seoul')
 # 상단 파이썬 시간 미리 계산
 now_init = datetime.datetime.now(KST)
 wkdays = ["월", "화", "수", "목", "금", "토", "일"]
-init_time_str = f"🕒 {now_init.month}월 {now_init.day}일 {wkdays[now_init.weekday()]}요일 {now_init.strftime('%H:%M:%S')}"
+# 시계 포맷
+init_time_str = f"{now_init.month}월 {now_init.day}일 {wkdays[now_init.weekday()]}요일 {now_init.strftime('%H:%M:%S')}"
 
 st.markdown(
     f"""
     <style>
-    /* 상단 고정 시간바 */
-    .fixed-time-bar {{
-        position: fixed; top: 3rem; left: 0; width: 100%;
-        background-color: var(--background-color); 
-        color: #FF5722; 
-        text-align: center;
-        padding: 0.1rem 0; font-weight: bold;
-        z-index: 99999; border-bottom: 2px solid #FF5722;
-        box-shadow: 0px 1px 3px rgba(0,0,0,0.1);
-        font-size: 1.1rem;
+    /* 상단 헤더 컨테이너 (타이틀 + 시계) */
+    .header-container {{
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 20px; /* 타이틀과 시계 사이 간격 */
+        padding: 1rem 0;
+        margin-bottom: 1rem;
+        background-color: white;
+        border-bottom: 3px solid #FF5722;
     }}
+    
+    /* 타이틀 스타일 */
+    .main-title {{
+        font-size: 2.5rem;
+        font-weight: 900;
+        color: #212121;
+        margin: 0;
+    }}
+    
+    /* 시계 스타일 */
+    .live-clock {{
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: #FF5722;
+    }}
+
+    /* 모바일 대응 */
     @media only screen and (max-width: 768px) {{
-        .fixed-time-bar {{ font-size: 0.9rem; padding: 0.2rem 0; }}
-        .block-container {{ padding-top: 3.5rem; padding-left: 0.5rem; padding-right: 0.5rem; }}
+        .header-container {{ flex-direction: column; gap: 5px; }}
+        .main-title {{ font-size: 1.5rem; }}
+        .live-clock {{ font-size: 1.2rem; }}
+        .block-container {{ padding-top: 1rem; }}
     }}
-    .block-container {{ padding-top: 4.5rem; }}
+    
+    .block-container {{ padding-top: 2rem; }}
     div.stButton > button {{ white-space: nowrap; width: 100%; }}
     </style>
     
-    <div class="fixed-time-bar" id="live-clock">{init_time_str}</div>
+    <div class="header-container">
+        <div class="main-title">✨ SEMINAR SCHEDULE 🐾</div>
+        <div class="live-clock" id="live-clock">{init_time_str}</div>
+    </div>
     """,
     unsafe_allow_html=True
 )
@@ -162,10 +186,9 @@ def extract_schedule(raw_text):
                 <span style='color: var(--text-color);'>👤 담당자: {data['staff']}</span><br>
                 <span style='{broadcast_style}'>📺 방　송: {data['simple_remark']}</span></div>"""
 
-            # [핵심 수정] 줄바꿈(<br>) 사이에 가로줄(──────) 추가
             schedule_data.append(dict(Task=data['location'], Start=setup_dt, Finish=start_dt, Resource="셋팅", Status=setup_status, Color=setup_color, BarText="SET", Description=desc, Opacity=0.8))
             schedule_data.append(dict(Task=data['location'], Start=start_dt, Finish=end_dt, Resource="본행사", Status=main_status, Color=main_color, 
-                BarText=f"{data['office']}<br>──────<br>{data['staff']}", # 구분선 추가
+                BarText=f"{data['office']}<br>──────<br>{data['staff']}",
                 Description=desc, Opacity=1.0))
             
             js_events.append({ "location": data['location'], "setup_ts": setup_dt.timestamp() * 1000 })
@@ -175,7 +198,7 @@ def extract_schedule(raw_text):
 # ==========================================
 # 4. 메인 화면 구성
 # ==========================================
-st.title("✨ SEMINAR ZOO SCHEDULE 🐾")
+# 기존 st.title 제거 (위에서 HTML로 대체)
 
 if 'input_text' not in st.session_state: st.session_state['input_text'] = ""
 
@@ -219,8 +242,6 @@ if timeline_data:
         textposition='inside', insidetextanchor='middle', 
         hovertemplate="%{customdata[0]}<extra></extra>", 
         hoverlabel=dict(font_size=14, font_family="Malgun Gothic", align="left"),
-        
-        # 글자 크기 18px, 볼드체, 테두리 유지
         textfont=dict(size=18, weight="bold"),
         marker=dict(line=dict(width=2, color='#424242'))
     )
@@ -229,25 +250,38 @@ if timeline_data:
     range_x_start = f"{today_str} 07:00"
     range_x_end = f"{today_str} 22:00"
 
+    # [수정] 1시간 단위 (3600000ms), 그리드 진하게, 테두리(Mirror)
     fig.update_xaxes(
-        showgrid=True, gridwidth=1, gridcolor='#EEEEEE', title="", 
-        tickformat="%H:%M", dtick=1800000, tickmode='linear', tickangle=-45, 
+        showgrid=True, gridwidth=1, gridcolor='#9E9E9E', # 진한 그리드
+        showline=True, linewidth=1, linecolor='black', mirror=True, # 테두리 박스
+        title="", 
+        tickformat="%H:%M", 
+        dtick=3600000, # 1시간 단위
+        tickmode='linear', tickangle=-45, 
         side="top", 
-        tickfont=dict(size=13, weight="bold"),
+        tickfont=dict(size=14, weight="bold"),
         range=[range_x_start, range_x_end], automargin=True
     )
     
+    # [수정] Y축 그리드 진하게, 테두리
     fig.update_yaxes(
-        showgrid=True, gridwidth=1, gridcolor='#EEEEEE', title="", 
+        showgrid=True, gridwidth=1, gridcolor='#9E9E9E', # 진한 그리드
+        showline=True, linewidth=1, linecolor='black', mirror=True, # 테두리 박스
+        title="", 
         autorange="reversed", 
-        tickfont=dict(size=15, weight="bold"),
+        tickfont=dict(size=16, weight="bold"),
         automargin=True
     )
     
+    # [수정] 배경색 구분 (Y축 영역 vs 차트 영역)
+    # paper_bgcolor: 차트 바깥 영역 (Y축 라벨 포함) -> 연한 회색(#F5F5F5)
+    # plot_bgcolor: 실제 막대가 그려지는 영역 -> 흰색(white)
     fig.update_layout(
         height=dynamic_height, 
         font=dict(size=14), 
         showlegend=True,
+        paper_bgcolor='#F5F5F5', # Y축 배경 구분 효과
+        plot_bgcolor='white',    # 차트 내부 흰색
         margin=dict(t=80, b=100, l=10, r=10), 
         hoverlabel_align='left',
         legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5)
@@ -281,7 +315,7 @@ components.html(
             const timeString = now.toLocaleTimeString('ko-KR', {{ hour12: false }});
             const dateString = now.toLocaleDateString('ko-KR', {{ month: 'long', day: 'numeric', weekday: 'long' }});
             const clockElement = window.parent.document.getElementById('live-clock');
-            if (clockElement) {{ clockElement.innerText = "🕒 " + dateString + " " + timeString; }}
+            if (clockElement) {{ clockElement.innerText = dateString + " " + timeString; }}
 
             events.forEach(event => {{
                 const setupTime = new Date(event.setup_ts);
