@@ -34,10 +34,10 @@ st.markdown(
 
     .header-container {{
         display: flex; justify-content: center; align-items: center; gap: 20px; 
-        padding: 1rem 0; margin-bottom: 1rem; background-color: white; border-bottom: 3px solid #FEBD17;
+        padding: 1rem 0; margin-bottom: 1rem; background-color: white; border-bottom: 3px solid #FF007F;
     }}
     .main-title {{ font-size: 2.5rem; font-weight: 900; color: #333333; margin: 0; }}
-    .live-clock {{ font-size: 1.8rem; font-weight: bold; color: #F94680; }} 
+    .live-clock {{ font-size: 1.8rem; font-weight: bold; color: #FF007F; }} /* 네온 핑크 시계 */
 
     @media only screen and (max-width: 768px) {{
         .header-container {{ flex-direction: column; gap: 5px; }}
@@ -111,14 +111,14 @@ def parse_time_str(time_str):
     except: return None
     return None
 
-# [수정] 파스텔톤 팔레트 적용
+# [수정] POP & VIVID 컬러 팔레트 적용
 COLOR_PALETTE = {
-    "종료": "#EEEEEE",        # 아주 연한 회색
-    "ON AIR": "#FF9AA2",      # 파스텔 레드 (강조)
-    "셋팅중": "#FFDAC1",      # 파스텔 피치/살구
-    "셋팅임박": "#FFDAC1",    # 파스텔 피치
-    "대기(행사)": "#B5EAD7",  # 파스텔 민트
-    "대기(셋팅)": "#E0E0E0"   # 진한 회색 (기본 셋팅값)
+    "종료": "#EEEEEE",        # 배경용 연회색
+    "ON AIR": "#FF007F",      # 네온 핑크 (Neon Pink) - 강력한 강조
+    "셋팅중": "#FF8C00",      # 비비드 오렌지 (Dark Orange) - 눈에 띔
+    "셋팅임박": "#FF8C00",    # 비비드 오렌지
+    "대기(행사)": "#32CD32",  # 라임 그린 (Lime Green) - 산뜻함
+    "대기(셋팅)": "#B0B0B0"   # 쿨 그레이 (Cool Gray) - 차분함
 }
 
 def shorten_location(loc_name):
@@ -192,7 +192,7 @@ def extract_schedule(raw_text):
                 broadcast_style = "color: #D32F2F; font-weight: bold;" if "생중계" in data['simple_remark'] else "color: #388E3C; font-weight: bold;"
                 
                 desc = f"""<div style='text-align: left; font-family: "Nanum Gothic", sans-serif; font-size: 14px; line-height: 1.6;'>
-                    <span style='color: #FEBD17; font-size: 16px; font-weight: 800;'>🐻 [{data['location']}]</span><br>
+                    <span style='color: #FF007F; font-size: 16px; font-weight: 800;'>🐻 [{data['location']}]</span><br>
                     <span style='color: #333;'>♥ 의원실: {data['office']}</span><br>
                     <span style='color: #333;'>📝 제　목: {data['title']}</span><br>
                     <span style='color: #333;'>⏰ 시　간: {setup_dt.strftime('%H:%M')} (셋팅) ~ {start_dt.strftime('%H:%M')} (시작)</span><br>
@@ -256,13 +256,12 @@ if timeline_data:
         opacity=0.9
     )
     
-    # [수정] 차트 바 내부 글씨: 22px로 확대
     fig.update_traces(
         textposition='inside', insidetextanchor='middle', 
         hovertemplate="%{customdata[0]}<extra></extra>", 
         hoverlabel=dict(font_size=14, font_family="Nanum Gothic", align="left"),
-        textfont=dict(size=22, family="Nanum Gothic"), # 22px
-        marker=dict(line=dict(width=2, color='#555555')) 
+        textfont=dict(size=22, family="Nanum Gothic"), 
+        marker=dict(line=dict(width=2, color='#333333')) 
     )
     
     today_str = datetime.datetime.now(KST).strftime("%Y-%m-%d")
@@ -297,23 +296,22 @@ if timeline_data:
         
         short_task = shorten_location(task)
         
-        # [수정] 장소 이름: 35px로 대폭 확대
+        # [핵심 수정] 왼쪽 여백 늘림에 맞춰 텍스트 위치(x) 조정
         fig.add_annotation(
-            x=-0.02, xref="paper", # 약간 더 왼쪽으로 이동
-            y=i, yref="y",
+            x=-0.01, xref="paper", y=i, yref="y",
             text=f"<b>{short_task}</b>", showarrow=False,
-            font=dict(size=35, color="black", family="Nanum Gothic"), # 35px
+            font=dict(size=35, color="black", family="Nanum Gothic"), 
             align="right"
         )
 
-    # [수정] 왼쪽 여백(l)을 200으로 늘려 겹침 해결
+    # [핵심 수정] margin-l (왼쪽 여백) 200px로 대폭 확대 -> 글자 잘림 방지
     fig.update_layout(
         height=dynamic_height, 
         font=dict(size=14, family="Nanum Gothic"), 
         showlegend=True,
         paper_bgcolor='white', 
         plot_bgcolor='white',    
-        margin=dict(t=80, b=100, l=200, r=10), # l=200 (여백 확보)
+        margin=dict(t=80, b=100, l=200, r=10), # l=200으로 설정
         hoverlabel_align='left',
         legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5)
     )
