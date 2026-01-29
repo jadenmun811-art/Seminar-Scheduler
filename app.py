@@ -143,13 +143,13 @@ def parse_time_str(time_str):
     except: return None
     return None
 
-# [유지] 장소별 색상 정의 (채도 낮춤 - 차분한 톤)
+# [유지] 장소별 색상 정의 (차분한 톤)
 COLORS = {
-    "BLUE_MAIN": "#5E7CE2",   # 차분한 파랑
+    "BLUE_MAIN": "#5E7CE2",   
     "BLUE_SETUP": "#AAB8E8",  
-    "ORANGE_MAIN": "#E6A85E", # 차분한 주황/골드
+    "ORANGE_MAIN": "#E6A85E", 
     "ORANGE_SETUP": "#F2D1A8", 
-    "GREEN_MAIN": "#76C48C",  # 차분한 연두
+    "GREEN_MAIN": "#76C48C",  
     "GREEN_SETUP": "#B5E2C1", 
     "GRAY_MAIN": "#9E9E9E",   
     "GRAY_SETUP": "#E0E0E0"
@@ -223,11 +223,9 @@ def extract_schedule(raw_text):
                 elif setup_dt <= now < start_dt: setup_status = "셋팅중"; main_status = "대기(행사)";
                 elif (setup_dt - datetime.timedelta(minutes=30)) <= now < setup_dt: setup_status = "셋팅임박";
                 
-                # 장소 이름 기반 색상 할당
                 setup_color = get_color_for_location(data['location'], is_setup=True)
                 main_color = get_color_for_location(data['location'], is_setup=False)
 
-                # 툴팁 내용 (글씨 검은색 유지)
                 desc = f"""<div style='text-align: left; font-family: "Do Hyeon", sans-serif; font-size: 14px; line-height: 1.6; color: black;'>
                     <span style='font-size: 16px; font-weight: bold;'>🐻 [{data['location']}]</span><br>
                     <span>♥ 의원실: {data['office']}</span><br>
@@ -298,9 +296,14 @@ if timeline_data:
         marker=dict(line=dict(width=0)) 
     )
     
-    today_str = datetime.datetime.now(KST).strftime("%Y-%m-%d")
-    range_x_start = f"{today_str} 05:00"
-    range_x_end = f"{today_str} 21:00"
+    now_dt_kst = datetime.datetime.now(KST)
+    
+    # [핵심] X축 범위(Range)를 현재 시간 기준 앞뒤로 설정하여 "중앙 고정" 효과 구현
+    # 현재 시간 기준: 앞 4시간 ~ 뒤 4시간 (총 8시간 윈도우)
+    # 시간이 흐르면 now_dt_kst가 바뀌므로 창(Window)이 오른쪽으로 이동 -> 그래프는 왼쪽으로 다가오는 효과
+    half_window = datetime.timedelta(hours=4)
+    range_x_start = now_dt_kst - half_window
+    range_x_end = now_dt_kst + half_window
 
     fig.update_xaxes(
         showgrid=True, gridwidth=1, gridcolor='#444', 
@@ -312,7 +315,8 @@ if timeline_data:
         dtick=3600000, 
         tickmode='linear', tickangle=0, 
         side="top", 
-        range=[range_x_start, range_x_end], automargin=True
+        range=[range_x_start, range_x_end], # [핵심] 동적 범위 적용
+        automargin=True
     )
     
     fig.update_yaxes(
@@ -324,9 +328,11 @@ if timeline_data:
         automargin=True
     )
     
-    # [핵심] 표 형식 타임라인 (수정됨)
+    # 표 형식 타임라인 (05:00 ~ 21:00 전체 그림)
+    # 그래프가 스크롤되어도 이 표는 '데이터 좌표(x)'에 고정되어 있으므로 같이 움직임
     start_hour = 5
     end_hour = 21
+    today_str = now_dt_kst.strftime("%Y-%m-%d")
     
     for hour in range(start_hour, end_hour + 1):
         time_str = f"{hour:02d}:00"
@@ -336,27 +342,26 @@ if timeline_data:
         else:
              x1_time = pd.Timestamp(f"{today_str} {hour+1:02d}:00")
 
-        # 1. 표 테두리 박스 (높이 약간 증가: 1.01 ~ 1.10)
+        # 1. 표 테두리 박스
         fig.add_shape(
             type="rect",
             xref="x", yref="paper",
             x0=x0_time, x1=x1_time,
-            y0=1.01, y1=1.10, # [수정] 박스 높이 여유있게 확보
+            y0=1.01, y1=1.10, 
             line=dict(color="white", width=1),
             fillcolor="#1E1E1E" 
         )
         
-        # 2. 시간 텍스트 (정중앙 배치)
+        # 2. 시간 텍스트
         fig.add_annotation(
             x=x0_time + (x1_time - x0_time) / 2, 
-            y=1.055, # [수정] 박스(1.01~1.10)의 정중앙 좌표
+            y=1.055, 
             xref="x", yref="paper",
             text=time_str,
             showarrow=False,
-            yanchor="middle", # [수정] 텍스트 수직 중앙 정렬
-            font=dict(size=26, color="white", family="Do Hyeon") # [수정] 글씨 26px로 확대
+            yanchor="middle", 
+            font=dict(size=26, color="white", family="Do Hyeon") 
         )
-
 
     # 배경 트랙 & 컬러바 & 장소 이름
     unique_tasks = df['ShortTask'].unique()
@@ -392,11 +397,11 @@ if timeline_data:
             align="right"
         )
 
-    # [수정] 현재 시간 깃발 (타임라인 박스 위로 이동)
-    now_dt_kst = datetime.datetime.now(KST)
+    # 현재 시간 깃발 & 선
+    # X축 범위가 '현재 시간'을 중심으로 잡혀 있으므로, 이 선은 항상 화면 중앙에 보임
     fig.add_vline(x=now_dt_kst, line_width=2, line_dash="solid", line_color="red")
     fig.add_annotation(
-        x=now_dt_kst, y=1.10, xref="x", yref="paper", # [수정] 박스 상단(1.10) 위에 위치
+        x=now_dt_kst, y=1.10, xref="x", yref="paper",
         text="▼", showarrow=False,
         font=dict(size=25, color="red"),
         yshift=0
@@ -417,7 +422,7 @@ else:
     st.info("👈 왼쪽 사이드바에 스케줄을 입력하고 '🥕 스케줄 불러오기'를 누르세요.")
 
 # ==========================================
-# 5. JavaScript (기존 기능 유지)
+# 5. JavaScript
 # ==========================================
 js_events_json = json.dumps(js_events)
 js_tts_enabled = str(tts_enabled).lower()
