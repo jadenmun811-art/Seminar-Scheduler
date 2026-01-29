@@ -120,11 +120,10 @@ COLOR_PALETTE = {
     "대기(셋팅)": "#B0B0B0"   
 }
 
-# 장소 이름 줄이기 함수
 def shorten_location(loc_name):
     match = re.search(r'(\d+)\s*([가-힣])', loc_name)
     if match:
-        return f"{match.group(1)}{match.group(2)}" # 예: 1세
+        return f"{match.group(1)}{match.group(2)}" 
     return loc_name[:2]
 
 def extract_schedule(raw_text):
@@ -252,12 +251,10 @@ timeline_data, js_events = extract_schedule(st.session_state['input_text'])
 if timeline_data:
     df = pd.DataFrame(timeline_data)
     
-    # [핵심] 차트 그리기 전, 장소 이름을 2글자로 미리 줄임 (Y축 라벨용)
     df['ShortTask'] = df['Task'].apply(shorten_location)
 
     dynamic_height = max(800, len(df['Task'].unique()) * 80 + 200)
 
-    # y=ShortTask (줄인 이름) 사용
     fig = px.timeline(
         df, x_start="Start", x_end="Finish", y="ShortTask", 
         color="Status", text="BarText", custom_data=["Description"], 
@@ -265,11 +262,12 @@ if timeline_data:
         opacity=0.9
     )
     
+    # [수정] 담당자 글자 크기: 30px로 확대
     fig.update_traces(
         textposition='inside', insidetextanchor='middle', 
         hovertemplate="%{customdata[0]}<extra></extra>", 
         hoverlabel=dict(font_size=14, font_family="Do Hyeon", align="left"),
-        textfont=dict(size=22, family="Do Hyeon"), 
+        textfont=dict(size=30, family="Do Hyeon"), # 30px
         marker=dict(line=dict(width=2, color='#333333')) 
     )
     
@@ -277,6 +275,7 @@ if timeline_data:
     range_x_start = f"{today_str} 05:00"
     range_x_end = f"{today_str} 21:00"
 
+    # [수정] 시간축 글자 크기: 24px로 확대
     fig.update_xaxes(
         showgrid=False, 
         showline=True, linewidth=2, linecolor='black', mirror=True, 
@@ -286,22 +285,21 @@ if timeline_data:
         dtick=3600000, 
         tickmode='linear', tickangle=0, 
         side="top", 
-        tickfont=dict(size=20, family="Do Hyeon", color="black"), 
+        tickfont=dict(size=24, family="Do Hyeon", color="black"), # 24px
         range=[range_x_start, range_x_end], automargin=True
     )
     
-    # [핵심 수정] Y축 라벨 켜기 (showticklabels=True) -> 박스 밖으로 자동 배치
+    # [수정] 장소 이름 글자 크기: 40px로 확대
     fig.update_yaxes(
         showgrid=False, 
         showline=True, linewidth=2, linecolor='black', mirror=True,
-        showticklabels=True, # 라벨 켜기
-        tickfont=dict(size=30, family="Do Hyeon", color="black"), # 30px 배민체
+        showticklabels=True, 
+        tickfont=dict(size=40, family="Do Hyeon", color="black"), # 40px
         title="", 
         autorange="reversed", 
         automargin=True
     )
     
-    # 가로 구분선 (검은색)
     unique_tasks = df['ShortTask'].unique()
     for i in range(len(unique_tasks)):
         fig.add_hline(y=i + 0.5, line_width=1, line_color="black")
@@ -312,7 +310,7 @@ if timeline_data:
         showlegend=True,
         paper_bgcolor='white', 
         plot_bgcolor='white',    
-        margin=dict(t=80, b=100, l=150, r=10), # 왼쪽 여백 확보 (라벨 공간)
+        margin=dict(t=80, b=100, l=150, r=10), 
         hoverlabel_align='left',
         legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5)
     )
@@ -325,7 +323,7 @@ else:
     st.info("👈 왼쪽 사이드바에 스케줄을 입력하고 '🥕 스케줄 불러오기'를 누르세요.")
 
 # ==========================================
-# 5. JavaScript (TTS 담당자 호명 유지)
+# 5. JavaScript (기존 기능 유지)
 # ==========================================
 js_events_json = json.dumps(js_events)
 js_tts_enabled = str(tts_enabled).lower()
