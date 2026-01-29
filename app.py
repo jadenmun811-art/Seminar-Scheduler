@@ -143,8 +143,7 @@ def parse_time_str(time_str):
     except: return None
     return None
 
-# [핵심] 장소별 색상 정의 (사진 참고)
-# Main: 본행사 색상 / Setup: 셋팅 색상 (연하게)
+# 장소별 색상 정의
 COLORS = {
     "BLUE_MAIN": "#3D64FF",   # 파랑 (소회의실)
     "BLUE_SETUP": "#8BA4FF",
@@ -165,7 +164,7 @@ def shorten_location(loc_name):
         return f"{match.group(1)}{match.group(2)}" 
     return loc_name[:2]
 
-# [핵심] 장소 이름에 따라 색상 결정하는 함수
+# 장소 이름에 따라 색상 결정하는 함수
 def get_color_for_location(loc_name, is_setup):
     if "소" in loc_name: # 소회의실 -> 파랑
         return COLORS["BLUE_SETUP"] if is_setup else COLORS["BLUE_MAIN"]
@@ -232,7 +231,7 @@ def extract_schedule(raw_text):
                 elif setup_dt <= now < start_dt: setup_status = "셋팅중"; main_status = "대기(행사)";
                 elif (setup_dt - datetime.timedelta(minutes=30)) <= now < setup_dt: setup_status = "셋팅임박";
                 
-                # [수정] 장소 이름 기반 색상 할당
+                # 장소 이름 기반 색상 할당
                 setup_color = get_color_for_location(data['location'], is_setup=True)
                 main_color = get_color_for_location(data['location'], is_setup=False)
 
@@ -292,21 +291,20 @@ if timeline_data:
     df['ShortTask'] = df['Task'].apply(shorten_location)
     dynamic_height = max(800, len(df['Task'].unique()) * 80 + 200)
 
-    # [수정] 색상을 직접 ColorCode 컬럼에서 가져옴
     fig = px.timeline(
         df, x_start="Start", x_end="Finish", y="ShortTask", 
         text="BarText", custom_data=["Description"], 
         opacity=1.0 
     )
     
-    # [핵심] Traces 업데이트 (색상 강제 적용)
+    # [수정] Traces 업데이트 (글씨 흰색으로 변경)
     fig.update_traces(
-        marker_color=df['ColorCode'], # 데이터프레임의 색상 코드 사용
+        marker_color=df['ColorCode'], 
         textposition='inside', insidetextanchor='middle', 
         hovertemplate="%{customdata[0]}<extra></extra>", 
         hoverlabel=dict(font_size=16, font_family="Do Hyeon", align="left", bgcolor="white"),
-        textfont=dict(size=30, family="Do Hyeon", color="black"), 
-        marker=dict(line=dict(width=0)) # 테두리 제거 (사진처럼 깔끔하게)
+        textfont=dict(size=30, family="Do Hyeon", color="white"), # [수정] 글씨 하얀색
+        marker=dict(line=dict(width=0)) 
     )
     
     today_str = datetime.datetime.now(KST).strftime("%Y-%m-%d")
@@ -314,7 +312,7 @@ if timeline_data:
     range_x_end = f"{today_str} 21:00"
 
     fig.update_xaxes(
-        showgrid=True, gridwidth=1, gridcolor='#444', # 어두운 그리드
+        showgrid=True, gridwidth=1, gridcolor='#444', 
         showline=True, linewidth=1, linecolor='white', mirror=True, 
         ticks="inside", tickwidth=2, tickcolor='white', ticklen=5, 
         title="", 
@@ -322,55 +320,54 @@ if timeline_data:
         dtick=3600000, 
         tickmode='linear', tickangle=0, 
         side="top", 
-        tickfont=dict(size=24, family="Do Hyeon", color="white"), # 흰색 글씨
+        tickfont=dict(size=24, family="Do Hyeon", color="white"), 
         range=[range_x_start, range_x_end], automargin=True
     )
     
     fig.update_yaxes(
         showgrid=True, gridwidth=1, gridcolor='#444',
         showline=False,
-        showticklabels=False, # 라벨 끄고 어노테이션으로 대체
+        showticklabels=False, 
         title="", 
         autorange="reversed", 
         automargin=True
     )
     
-    # [핵심] 좌측 장소 이름 + 컬러바(Color Bar) 그리기
+    # [수정] 좌측 장소 이름 + 컬러바(Color Bar) 위치 조정 (겹침 방지)
     unique_tasks = df['ShortTask'].unique()
     for i, short_task in enumerate(unique_tasks):
-        # 해당 장소의 메인 색상 찾기
         loc_main_color = get_color_for_location(short_task, is_setup=False)
         
-        # 1. 컬러바 (사각형 Shape) - 이름 왼쪽에 배치
+        # 1. 컬러바 (사각형 Shape) - 왼쪽으로 더 이동
         fig.add_shape(
             type="rect",
             xref="paper", yref="y",
-            x0=-0.005, x1=0, # 차트 바로 왼쪽 붙여서
+            x0=-0.025, x1=-0.02, # [수정] x 좌표 이동
             y0=i-0.4, y1=i+0.4,
             fillcolor=loc_main_color,
             line=dict(width=0),
         )
 
-        # 2. 장소 이름 (컬러바 왼쪽)
+        # 2. 장소 이름 (컬러바 오른쪽)
         fig.add_annotation(
             x=-0.015, xref="paper", y=i, yref="y",
             text=f"<b>{short_task}</b>", showarrow=False,
-            font=dict(size=45, color="white", family="Do Hyeon"), # 흰색 글씨 (다크모드)
+            font=dict(size=45, color="white", family="Do Hyeon"),
             align="right"
         )
 
     fig.update_layout(
         height=dynamic_height, 
         font=dict(size=14, family="Do Hyeon"), 
-        showlegend=False, # 레전드 숨김 (색상이 장소별로 다르므로)
-        paper_bgcolor='#1E1E1E', # 전체 배경 어둡게
-        plot_bgcolor='#1E1E1E',  # 차트 배경 어둡게
+        showlegend=False, 
+        paper_bgcolor='#1E1E1E', 
+        plot_bgcolor='#1E1E1E',  
         margin=dict(t=80, b=100, l=180, r=10), 
         hoverlabel_align='left',
     )
     
     now_dt_kst = datetime.datetime.now(KST)
-    fig.add_vline(x=now_dt_kst, line_width=2, line_dash="dash", line_color="white") # 흰색 점선
+    fig.add_vline(x=now_dt_kst, line_width=2, line_dash="dash", line_color="white") 
     
     st.plotly_chart(fig, use_container_width=True, config={'responsive': True})
 else:
