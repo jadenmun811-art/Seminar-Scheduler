@@ -143,18 +143,15 @@ def parse_time_str(time_str):
     except: return None
     return None
 
-# [수정] 장소별 색상 정의 (채도 낮춤 - 차분한 톤)
+# [유지] 장소별 색상 정의 (채도 낮춤 - 차분한 톤)
 COLORS = {
-    "BLUE_MAIN": "#5E7CE2",   # 차분한 파랑 (Muted Blue)
-    "BLUE_SETUP": "#AAB8E8",  # 연한 차분한 파랑
-    
-    "ORANGE_MAIN": "#E6A85E", # 차분한 주황/골드 (Muted Orange)
-    "ORANGE_SETUP": "#F2D1A8", # 연한 차분한 주황
-    
-    "GREEN_MAIN": "#76C48C",  # 차분한 연두 (Muted Green)
-    "GREEN_SETUP": "#B5E2C1", # 연한 차분한 연두
-    
-    "GRAY_MAIN": "#9E9E9E",   # 기타
+    "BLUE_MAIN": "#5E7CE2",   # 차분한 파랑
+    "BLUE_SETUP": "#AAB8E8",  
+    "ORANGE_MAIN": "#E6A85E", # 차분한 주황/골드
+    "ORANGE_SETUP": "#F2D1A8", 
+    "GREEN_MAIN": "#76C48C",  # 차분한 연두
+    "GREEN_SETUP": "#B5E2C1", 
+    "GRAY_MAIN": "#9E9E9E",   
     "GRAY_SETUP": "#E0E0E0"
 }
 
@@ -230,7 +227,7 @@ def extract_schedule(raw_text):
                 setup_color = get_color_for_location(data['location'], is_setup=True)
                 main_color = get_color_for_location(data['location'], is_setup=False)
 
-                # 툴팁 내용 (글씨 검은색으로 통일)
+                # 툴팁 내용 (글씨 검은색 유지)
                 desc = f"""<div style='text-align: left; font-family: "Do Hyeon", sans-serif; font-size: 14px; line-height: 1.6; color: black;'>
                     <span style='font-size: 16px; font-weight: bold;'>🐻 [{data['location']}]</span><br>
                     <span>♥ 의원실: {data['office']}</span><br>
@@ -283,7 +280,7 @@ timeline_data, js_events = extract_schedule(st.session_state['input_text'])
 if timeline_data:
     df = pd.DataFrame(timeline_data)
     df['ShortTask'] = df['Task'].apply(shorten_location)
-    dynamic_height = max(800, len(df['Task'].unique()) * 80 + 250) # [수정] 상단 여백 위해 높이 추가
+    dynamic_height = max(800, len(df['Task'].unique()) * 80 + 250) 
 
     fig = px.timeline(
         df, x_start="Start", x_end="Finish", y="ShortTask", 
@@ -291,13 +288,13 @@ if timeline_data:
         opacity=1.0 
     )
     
-    # [수정] Traces 업데이트 (글씨 검은색으로 변경)
+    # [유지] Traces (글씨 검은색)
     fig.update_traces(
         marker_color=df['ColorCode'], 
         textposition='inside', insidetextanchor='middle', 
         hovertemplate="%{customdata[0]}<extra></extra>", 
         hoverlabel=dict(font_size=16, font_family="Do Hyeon", align="left", bgcolor="white"),
-        textfont=dict(size=30, family="Do Hyeon", color="black"), # [수정] 글씨 검은색
+        textfont=dict(size=30, family="Do Hyeon", color="black"), 
         marker=dict(line=dict(width=0)) 
     )
     
@@ -306,10 +303,10 @@ if timeline_data:
     range_x_end = f"{today_str} 21:00"
 
     fig.update_xaxes(
-        showgrid=True, gridwidth=1, gridcolor='#444', # 그리드 다시 표시
-        showline=False, # 기존 라인 숨김
-        ticks="", # 기존 틱 숨김
-        showticklabels=False, # 기존 라벨 숨김 (표 형식으로 대체)
+        showgrid=True, gridwidth=1, gridcolor='#444', 
+        showline=False, 
+        ticks="", 
+        showticklabels=False, 
         title="", 
         tickformat="%H:%M", 
         dtick=3600000, 
@@ -327,38 +324,37 @@ if timeline_data:
         automargin=True
     )
     
-    # [핵심] 표 형식 타임라인 (Table Timeline) 그리기
-    # 05:00부터 21:00까지 시간별로 박스와 텍스트 추가
+    # [핵심] 표 형식 타임라인 (수정됨)
     start_hour = 5
     end_hour = 21
     
     for hour in range(start_hour, end_hour + 1):
         time_str = f"{hour:02d}:00"
-        # 시간대별 X축 좌표 계산
         x0_time = pd.Timestamp(f"{today_str} {hour:02d}:00")
-        # 마지막 시간(21시)은 21:59까지로 간주하여 박스 마감
         if hour == end_hour:
              x1_time = pd.Timestamp(f"{today_str} {hour:02d}:59")
         else:
              x1_time = pd.Timestamp(f"{today_str} {hour+1:02d}:00")
 
-        # 1. 표 테두리 박스 (흰색 선)
+        # 1. 표 테두리 박스 (높이 약간 증가: 1.01 ~ 1.10)
         fig.add_shape(
             type="rect",
             xref="x", yref="paper",
             x0=x0_time, x1=x1_time,
-            y0=1.01, y1=1.08, # 차트 상단에 위치
+            y0=1.01, y1=1.10, # [수정] 박스 높이 여유있게 확보
             line=dict(color="white", width=1),
-            fillcolor="#1E1E1E" # 배경색과 동일하게 채움
+            fillcolor="#1E1E1E" 
         )
         
-        # 2. 시간 텍스트 (중앙 정렬)
+        # 2. 시간 텍스트 (정중앙 배치)
         fig.add_annotation(
-            x=x0_time + (x1_time - x0_time) / 2, # 박스 중앙 계산
-            y=1.045, xref="x", yref="paper",
+            x=x0_time + (x1_time - x0_time) / 2, 
+            y=1.055, # [수정] 박스(1.01~1.10)의 정중앙 좌표
+            xref="x", yref="paper",
             text=time_str,
             showarrow=False,
-            font=dict(size=20, color="white", family="Do Hyeon")
+            yanchor="middle", # [수정] 텍스트 수직 중앙 정렬
+            font=dict(size=26, color="white", family="Do Hyeon") # [수정] 글씨 26px로 확대
         )
 
 
@@ -396,11 +392,11 @@ if timeline_data:
             align="right"
         )
 
-    # 현재 시간 깃발
+    # [수정] 현재 시간 깃발 (타임라인 박스 위로 이동)
     now_dt_kst = datetime.datetime.now(KST)
     fig.add_vline(x=now_dt_kst, line_width=2, line_dash="solid", line_color="red")
     fig.add_annotation(
-        x=now_dt_kst, y=1.08, xref="x", yref="paper", # 표 바로 위에 위치
+        x=now_dt_kst, y=1.10, xref="x", yref="paper", # [수정] 박스 상단(1.10) 위에 위치
         text="▼", showarrow=False,
         font=dict(size=25, color="red"),
         yshift=0
@@ -412,7 +408,7 @@ if timeline_data:
         showlegend=False, 
         paper_bgcolor='#1E1E1E', 
         plot_bgcolor='#1E1E1E',  
-        margin=dict(t=120, b=100, l=180, r=10), # [수정] 상단 마진(t) 증가 (표 공간 확보)
+        margin=dict(t=120, b=100, l=180, r=10), 
         hoverlabel_align='left',
     )
     
