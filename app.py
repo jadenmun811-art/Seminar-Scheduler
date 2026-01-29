@@ -37,7 +37,7 @@ st.markdown(
     .header-container {{
         display: flex; justify-content: center; align-items: center; gap: 20px; 
         padding: 1.5rem 0; margin-bottom: 2rem; 
-        background-color: #2C2C2C; /* 헤더 배경 */
+        background-color: #2C2C2C; 
         border-bottom: 4px solid #555; 
         border-radius: 15px;
     }}
@@ -74,7 +74,7 @@ st.markdown(
         box-shadow: 0px 0px 0px #C94530 !important;
     }}
 
-    /* 사이드바 등 텍스트 컬러 조정 */
+    /* 텍스트 컬러 조정 */
     .stMarkdown, .stText, h1, h2, h3 {{
         color: white !important;
     }}
@@ -164,16 +164,11 @@ def shorten_location(loc_name):
         return f"{match.group(1)}{match.group(2)}" 
     return loc_name[:2]
 
-# 장소 이름에 따라 색상 결정하는 함수
 def get_color_for_location(loc_name, is_setup):
-    if "소" in loc_name: # 소회의실 -> 파랑
-        return COLORS["BLUE_SETUP"] if is_setup else COLORS["BLUE_MAIN"]
-    elif "세" in loc_name: # 세미나실 -> 노랑/주황
-        return COLORS["ORANGE_SETUP"] if is_setup else COLORS["ORANGE_MAIN"]
-    elif "간" in loc_name: # 간담회의실 -> 연두
-        return COLORS["GREEN_SETUP"] if is_setup else COLORS["GREEN_MAIN"]
-    else:
-        return COLORS["GRAY_SETUP"] if is_setup else COLORS["GRAY_MAIN"]
+    if "소" in loc_name: return COLORS["BLUE_SETUP"] if is_setup else COLORS["BLUE_MAIN"]
+    elif "세" in loc_name: return COLORS["ORANGE_SETUP"] if is_setup else COLORS["ORANGE_MAIN"]
+    elif "간" in loc_name: return COLORS["GREEN_SETUP"] if is_setup else COLORS["GREEN_MAIN"]
+    else: return COLORS["GRAY_SETUP"] if is_setup else COLORS["GRAY_MAIN"]
 
 def extract_schedule(raw_text):
     schedule_data = []
@@ -231,7 +226,6 @@ def extract_schedule(raw_text):
                 elif setup_dt <= now < start_dt: setup_status = "셋팅중"; main_status = "대기(행사)";
                 elif (setup_dt - datetime.timedelta(minutes=30)) <= now < setup_dt: setup_status = "셋팅임박";
                 
-                # 장소 이름 기반 색상 할당
                 setup_color = get_color_for_location(data['location'], is_setup=True)
                 main_color = get_color_for_location(data['location'], is_setup=False)
 
@@ -297,6 +291,7 @@ if timeline_data:
         opacity=1.0 
     )
     
+    # [스타일] 글씨 흰색, 테두리 없음
     fig.update_traces(
         marker_color=df['ColorCode'], 
         textposition='inside', insidetextanchor='middle', 
@@ -311,7 +306,7 @@ if timeline_data:
     range_x_end = f"{today_str} 21:00"
 
     fig.update_xaxes(
-        showgrid=False, # [수정] 세로 그리드 제거
+        showgrid=False, # 세로 그리드 OFF
         showline=True, linewidth=1, linecolor='white', mirror=True, 
         ticks="inside", tickwidth=2, tickcolor='white', ticklen=5, 
         title="", 
@@ -324,7 +319,7 @@ if timeline_data:
     )
     
     fig.update_yaxes(
-        showgrid=False, # [수정] 가로 그리드 제거
+        showgrid=False, # 가로 그리드 OFF
         showline=False,
         showticklabels=False, 
         title="", 
@@ -332,61 +327,51 @@ if timeline_data:
         automargin=True
     )
     
-    # [핵심] 배경 트랙(Track) & 컬러바 & 깃발
     unique_tasks = df['ShortTask'].unique()
     for i, short_task in enumerate(unique_tasks):
         loc_main_color = get_color_for_location(short_task, is_setup=False)
         
-        # 1. 배경 트랙 (얇은 회색 바) - 사진 속 회색 트랙 구현
+        # 1. 배경 트랙 (회색)
         fig.add_shape(
             type="rect",
             xref="x", yref="y",
             x0=pd.Timestamp(f"{today_str} 05:00"), x1=pd.Timestamp(f"{today_str} 21:00"),
-            y0=i-0.1, y1=i+0.1, # 얇게
-            fillcolor="#333333", # 어두운 회색 트랙
+            y0=i-0.1, y1=i+0.1, 
+            fillcolor="#333333", 
             line=dict(width=0),
-            layer="below" # 그래프 뒤로
+            layer="below"
         )
 
-        # 2. 좌측 컬러바
+        # 2. 좌측 컬러바 (위치 더 왼쪽으로 이동)
         fig.add_shape(
             type="rect",
             xref="paper", yref="y",
-            x0=-0.025, x1=-0.02,
+            x0=-0.07, x1=-0.06, # [수정] -0.07 위치로 대폭 이동
             y0=i-0.4, y1=i+0.4,
             fillcolor=loc_main_color,
             line=dict(width=0),
         )
 
-        # 3. 장소 이름
+        # 3. 장소 이름 (위치 조정)
         fig.add_annotation(
-            x=-0.03, xref="paper", y=i, yref="y",
+            x=-0.02, xref="paper", y=i, yref="y",
             text=f"<b>{short_task}</b>", showarrow=False,
             font=dict(size=45, color="white", family="Do Hyeon"),
             align="right"
         )
 
-    # [핵심] 현재 시간 표시선 + 깃발(삼각형)
+    # [수정] 현재 시간 깃발 (상단 타임라인 위)
     now_dt_kst = datetime.datetime.now(KST)
     
     # 1. 빨간 수직선
     fig.add_vline(x=now_dt_kst, line_width=2, line_dash="solid", line_color="red")
     
-    # 2. 상단 깃발 (삼각형)
-    # yref='paper'를 사용하여 차트 상단(1.0) 위에 배치
-    # Plotly shape path로 삼각형 그리기 (M:시작, L:선긋기, Z:닫기)
-    # 시간축 좌표를 정확히 찍기 위해 add_annotation의 화살표 머리를 활용하거나, 
-    # scatter trace를 추가하는 것이 정확함. 여기서는 annotation marker 활용.
-    fig.add_trace(px.scatter(
-        x=[now_dt_kst], y=[0], 
-    ).data[0])
-    # 위 방식 대신 layout annotation의 arrow 이용이 더 쉬움
-    
+    # 2. 상단 깃발 (역삼각형 텍스트 활용)
     fig.add_annotation(
-        x=now_dt_kst, y=0, xref="x", yref="paper",
-        text="", showarrow=True,
-        arrowhead=2, arrowsize=1.5, arrowwidth=2, arrowcolor="white", # 흰색 깃발 느낌
-        ax=0, ay=-15 # 위로 살짝 띄움
+        x=now_dt_kst, y=1.0, xref="x", yref="paper", # y=1.0 (Top)
+        text="▼", showarrow=False,
+        font=dict(size=25, color="red"),
+        yshift=12 # 타임라인 위에 살짝 걸치게
     )
 
     fig.update_layout(
@@ -404,7 +389,7 @@ else:
     st.info("👈 왼쪽 사이드바에 스케줄을 입력하고 '🥕 스케줄 불러오기'를 누르세요.")
 
 # ==========================================
-# 5. JavaScript (기존 기능 유지)
+# 5. JavaScript
 # ==========================================
 js_events_json = json.dumps(js_events)
 js_tts_enabled = str(tts_enabled).lower()
