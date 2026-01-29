@@ -11,34 +11,44 @@ import pytz
 import streamlit.components.v1 as components
 
 # ==========================================
-# 1. 기본 설정 & CSS
+# 1. 기본 설정 & CSS (기존 유지)
 # ==========================================
 st.set_page_config(layout="wide", page_title="Seminar Schedule (Web) 🐾")
 
 KST = pytz.timezone('Asia/Seoul')
 
+# 상단 파이썬 시간 미리 계산 (로딩 단축)
+now_init = datetime.datetime.now(KST)
+wkdays = ["월", "화", "수", "목", "금", "토", "일"]
+init_time_str = f"🕒 {now_init.month}월 {now_init.day}일 {wkdays[now_init.weekday()]}요일 {now_init.strftime('%H:%M:%S')}"
+
 st.markdown(
-    """
+    f"""
     <style>
-    /* 상단 고정 시계바 */
-    .fixed-time-bar {
+    /* 상단 고정 시간바 */
+    .fixed-time-bar {{
         position: fixed; top: 3rem; left: 0; width: 100%;
         background-color: #ffffff; color: #FF5722; text-align: center;
-        padding: 0.5rem 0; font-weight: bold;
+        padding: 0.1rem 0; font-weight: bold;
         z-index: 99999; border-bottom: 2px solid #FF5722;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        font-size: 1.2rem;
-    }
-    .block-container { padding-top: 6rem !important; }
-    div.stButton > button { white-space: nowrap; width: 100%; font-weight: bold; }
+        box-shadow: 0px 1px 3px rgba(0,0,0,0.1);
+        font-size: 1.1rem;
+    }}
+    @media only screen and (max-width: 768px) {{
+        .fixed-time-bar {{ font-size: 0.9rem; padding: 0.2rem 0; }}
+        .block-container {{ padding-top: 3.5rem; padding-left: 0.5rem; padding-right: 0.5rem; }}
+    }}
+    .block-container {{ padding-top: 4.5rem; }}
+    div.stButton > button {{ white-space: nowrap; width: 100%; }}
     </style>
-    <div class="fixed-time-bar" id="live-clock">🕒 시간 동기화 중...</div>
+    
+    <div class="fixed-time-bar" id="live-clock">{init_time_str}</div>
     """,
     unsafe_allow_html=True
 )
 
 # ==========================================
-# 2. TTS 생성 및 보관함
+# 2. TTS 생성 및 보관함 (기존 유지)
 # ==========================================
 async def generate_tts_audio(text, filename="status_alert.mp3"):
     try:
@@ -76,7 +86,7 @@ def set_input_text(text):
     st.session_state['input_text'] = text
 
 # ==========================================
-# 3. 데이터 파싱
+# 3. 데이터 파싱 (기존 유지)
 # ==========================================
 def parse_time_str(time_str):
     try:
@@ -165,6 +175,11 @@ if 'input_text' not in st.session_state: st.session_state['input_text'] = ""
 
 with st.sidebar:
     st.header("📝 스케줄 관리")
+    
+    # [수정] 토글 대신 가장 확실한 '체크박스' 사용 (무조건 나타남)
+    tts_enabled = st.checkbox("🔊 TTS 소리 켜기 (체크 시 켜짐)", value=True)
+    st.divider()
+
     col1, col2 = st.columns([1, 1])
     with col1:
         if st.button("💾 보관함 저장"):
@@ -219,14 +234,12 @@ if timeline_data:
         automargin=True
     )
     
-    # [핵심 수정] 범례(Status)를 하단으로 이동시켜 시간축과 겹침 방지
     fig.update_layout(
         height=dynamic_height, 
         font=dict(size=14), 
         showlegend=True,
-        margin=dict(t=80, b=100, l=10, r=10), # 하단 여백(b) 확보
+        margin=dict(t=80, b=100, l=10, r=10), 
         hoverlabel_align='left',
-        # 범례 위치를 아래쪽(bottom) 중앙으로 이동
         legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5)
     )
     
@@ -238,15 +251,18 @@ else:
     st.info("👈 왼쪽 사이드바에 스케줄을 입력하고 '🥕 스케줄 불러오기'를 누르세요.")
 
 # ==========================================
-# 5. JavaScript (5분전 TTS, 시계, 리로드)
+# 5. JavaScript (5분전 TTS, 시계, 리로드, 스위치값 전달)
 # ==========================================
 js_events_json = json.dumps(js_events)
+# [핵심] 체크박스 상태(True/False)를 JS로 전달
+js_tts_enabled = str(tts_enabled).lower()
 
 components.html(
     f"""
     <script>
         const events = {js_events_json};
         const announced = new Set(); 
+        const ttsEnabled = {js_tts_enabled}; // 파이썬 체크박스 값
 
         function updateSystem() {{
             const now = new Date();
@@ -274,7 +290,8 @@ components.html(
         }}
 
         function speak(text) {{
-            if ('speechSynthesis' in window) {{
+            // 체크박스가 켜져있을 때만(true) 소리 재생
+            if (ttsEnabled && 'speechSynthesis' in window) {{
                 const utterance = new SpeechSynthesisUtterance(text);
                 utterance.lang = 'ko-KR'; utterance.rate = 1.0;     
                 window.speechSynthesis.speak(utterance);
