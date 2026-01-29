@@ -162,8 +162,13 @@ def extract_schedule(raw_text):
                 <span style='color: var(--text-color);'>👤 담당자: {data['staff']}</span><br>
                 <span style='{broadcast_style}'>📺 방　송: {data['simple_remark']}</span></div>"""
 
+            # [핵심 수정] BarText에 줄바꿈(<br>) 적용 -> 두 줄 표시
+            # SET은 글자가 짧으니 그대로 두고, 본행사(Resource="본행사") 쪽에만 적용
+            
             schedule_data.append(dict(Task=data['location'], Start=setup_dt, Finish=start_dt, Resource="셋팅", Status=setup_status, Color=setup_color, BarText="SET", Description=desc, Opacity=0.8))
-            schedule_data.append(dict(Task=data['location'], Start=start_dt, Finish=end_dt, Resource="본행사", Status=main_status, Color=main_color, BarText=f"{data['office']} | {data['staff']}", Description=desc, Opacity=1.0))
+            schedule_data.append(dict(Task=data['location'], Start=start_dt, Finish=end_dt, Resource="본행사", Status=main_status, Color=main_color, 
+                BarText=f"{data['office']}<br>{data['staff']}", # 줄바꿈 적용
+                Description=desc, Opacity=1.0))
             
             js_events.append({ "location": data['location'], "setup_ts": setup_dt.timestamp() * 1000 })
 
@@ -203,7 +208,9 @@ timeline_data, js_events = extract_schedule(st.session_state['input_text'])
 
 if timeline_data:
     df = pd.DataFrame(timeline_data)
-    dynamic_height = max(800, len(df['Task'].unique()) * 60 + 200)
+    
+    # [수정] 차트 칸 높이를 더 넉넉하게 (60 -> 80)
+    dynamic_height = max(800, len(df['Task'].unique()) * 80 + 200)
 
     fig = px.timeline(
         df, x_start="Start", x_end="Finish", y="Task", 
@@ -212,16 +219,13 @@ if timeline_data:
         opacity=0.9
     )
     
-    # [수정] 차트 글자 및 테두리 스타일 강화
     fig.update_traces(
         textposition='inside', insidetextanchor='middle', 
         hovertemplate="%{customdata[0]}<extra></extra>", 
         hoverlabel=dict(font_size=14, font_family="Malgun Gothic", align="left"),
         
-        # [NEW] 글자 크기 키우고(16px), 볼드체(bold) 적용
-        textfont=dict(size=16, weight="bold"),
-        
-        # [NEW] 테두리 추가 (진한 회색, 두께 2) -> 평면적인 느낌 해소
+        # [핵심 수정] 글자 크기 16px -> 18px 로 확대
+        textfont=dict(size=18, weight="bold"),
         marker=dict(line=dict(width=2, color='#424242'))
     )
     
