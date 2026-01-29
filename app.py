@@ -11,7 +11,7 @@ import pytz
 import streamlit.components.v1 as components
 
 # ==========================================
-# 1. 기본 설정 & CSS (타이틀/시계 통합, 배경색)
+# 1. 기본 설정 & CSS
 # ==========================================
 st.set_page_config(layout="wide", page_title="Seminar Schedule (Web) 🐾")
 
@@ -20,7 +20,6 @@ KST = pytz.timezone('Asia/Seoul')
 # 상단 파이썬 시간 미리 계산
 now_init = datetime.datetime.now(KST)
 wkdays = ["월", "화", "수", "목", "금", "토", "일"]
-# 시계 포맷
 init_time_str = f"{now_init.month}월 {now_init.day}일 {wkdays[now_init.weekday()]}요일 {now_init.strftime('%H:%M:%S')}"
 
 st.markdown(
@@ -31,7 +30,7 @@ st.markdown(
         display: flex;
         justify-content: center;
         align-items: center;
-        gap: 20px; /* 타이틀과 시계 사이 간격 */
+        gap: 20px; 
         padding: 1rem 0;
         margin-bottom: 1rem;
         background-color: white;
@@ -53,7 +52,6 @@ st.markdown(
         color: #FF5722;
     }}
 
-    /* 모바일 대응 */
     @media only screen and (max-width: 768px) {{
         .header-container {{ flex-direction: column; gap: 5px; }}
         .main-title {{ font-size: 1.5rem; }}
@@ -198,8 +196,6 @@ def extract_schedule(raw_text):
 # ==========================================
 # 4. 메인 화면 구성
 # ==========================================
-# 기존 st.title 제거 (위에서 HTML로 대체)
-
 if 'input_text' not in st.session_state: st.session_state['input_text'] = ""
 
 with st.sidebar:
@@ -250,38 +246,35 @@ if timeline_data:
     range_x_start = f"{today_str} 07:00"
     range_x_end = f"{today_str} 22:00"
 
-    # [수정] 1시간 단위 (3600000ms), 그리드 진하게, 테두리(Mirror)
+    # [수정] X축: 격자 끄고, 빨간색 테두리 추가
     fig.update_xaxes(
-        showgrid=True, gridwidth=1, gridcolor='#9E9E9E', # 진한 그리드
-        showline=True, linewidth=1, linecolor='black', mirror=True, # 테두리 박스
+        showgrid=False, # 격자 제거
+        showline=True, linewidth=2, linecolor='red', mirror=True, # 빨간색 테두리
         title="", 
         tickformat="%H:%M", 
-        dtick=3600000, # 1시간 단위
+        dtick=3600000, 
         tickmode='linear', tickangle=-45, 
         side="top", 
         tickfont=dict(size=14, weight="bold"),
         range=[range_x_start, range_x_end], automargin=True
     )
     
-    # [수정] Y축 그리드 진하게, 테두리
+    # [수정] Y축: 격자 끄고, 빨간색 테두리 추가
     fig.update_yaxes(
-        showgrid=True, gridwidth=1, gridcolor='#9E9E9E', # 진한 그리드
-        showline=True, linewidth=1, linecolor='black', mirror=True, # 테두리 박스
+        showgrid=False, # 격자 제거
+        showline=True, linewidth=2, linecolor='red', mirror=True, # 빨간색 테두리
         title="", 
         autorange="reversed", 
         tickfont=dict(size=16, weight="bold"),
         automargin=True
     )
     
-    # [수정] 배경색 구분 (Y축 영역 vs 차트 영역)
-    # paper_bgcolor: 차트 바깥 영역 (Y축 라벨 포함) -> 연한 회색(#F5F5F5)
-    # plot_bgcolor: 실제 막대가 그려지는 영역 -> 흰색(white)
     fig.update_layout(
         height=dynamic_height, 
         font=dict(size=14), 
         showlegend=True,
-        paper_bgcolor='#F5F5F5', # Y축 배경 구분 효과
-        plot_bgcolor='white',    # 차트 내부 흰색
+        paper_bgcolor='#F5F5F5',
+        plot_bgcolor='white',    
         margin=dict(t=80, b=100, l=10, r=10), 
         hoverlabel_align='left',
         legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5)
