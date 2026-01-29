@@ -56,7 +56,7 @@ st.markdown(
         border-radius: 15px;
     }} 
 
-    /* 3. "당근" 스타일 버튼 (유지) */
+    /* 3. "당근" 스타일 버튼 */
     div.stButton > button {{
         background-color: #FF6E56 !important;
         color: white !important;
@@ -297,13 +297,12 @@ if timeline_data:
         opacity=1.0 
     )
     
-    # [수정] Traces 업데이트 (글씨 흰색으로 변경)
     fig.update_traces(
         marker_color=df['ColorCode'], 
         textposition='inside', insidetextanchor='middle', 
         hovertemplate="%{customdata[0]}<extra></extra>", 
         hoverlabel=dict(font_size=16, font_family="Do Hyeon", align="left", bgcolor="white"),
-        textfont=dict(size=30, family="Do Hyeon", color="white"), # [수정] 글씨 하얀색
+        textfont=dict(size=30, family="Do Hyeon", color="white"), 
         marker=dict(line=dict(width=0)) 
     )
     
@@ -312,7 +311,7 @@ if timeline_data:
     range_x_end = f"{today_str} 21:00"
 
     fig.update_xaxes(
-        showgrid=True, gridwidth=1, gridcolor='#444', 
+        showgrid=False, # [수정] 세로 그리드 제거
         showline=True, linewidth=1, linecolor='white', mirror=True, 
         ticks="inside", tickwidth=2, tickcolor='white', ticklen=5, 
         title="", 
@@ -325,7 +324,7 @@ if timeline_data:
     )
     
     fig.update_yaxes(
-        showgrid=True, gridwidth=1, gridcolor='#444',
+        showgrid=False, # [수정] 가로 그리드 제거
         showline=False,
         showticklabels=False, 
         title="", 
@@ -333,28 +332,62 @@ if timeline_data:
         automargin=True
     )
     
-    # [수정] 좌측 장소 이름 + 컬러바(Color Bar) 위치 조정 (겹침 방지)
+    # [핵심] 배경 트랙(Track) & 컬러바 & 깃발
     unique_tasks = df['ShortTask'].unique()
     for i, short_task in enumerate(unique_tasks):
         loc_main_color = get_color_for_location(short_task, is_setup=False)
         
-        # 1. 컬러바 (사각형 Shape) - 왼쪽으로 더 이동
+        # 1. 배경 트랙 (얇은 회색 바) - 사진 속 회색 트랙 구현
+        fig.add_shape(
+            type="rect",
+            xref="x", yref="y",
+            x0=pd.Timestamp(f"{today_str} 05:00"), x1=pd.Timestamp(f"{today_str} 21:00"),
+            y0=i-0.1, y1=i+0.1, # 얇게
+            fillcolor="#333333", # 어두운 회색 트랙
+            line=dict(width=0),
+            layer="below" # 그래프 뒤로
+        )
+
+        # 2. 좌측 컬러바
         fig.add_shape(
             type="rect",
             xref="paper", yref="y",
-            x0=-0.025, x1=-0.02, # [수정] x 좌표 이동
+            x0=-0.025, x1=-0.02,
             y0=i-0.4, y1=i+0.4,
             fillcolor=loc_main_color,
             line=dict(width=0),
         )
 
-        # 2. 장소 이름 (컬러바 오른쪽)
+        # 3. 장소 이름
         fig.add_annotation(
-            x=-0.015, xref="paper", y=i, yref="y",
+            x=-0.03, xref="paper", y=i, yref="y",
             text=f"<b>{short_task}</b>", showarrow=False,
             font=dict(size=45, color="white", family="Do Hyeon"),
             align="right"
         )
+
+    # [핵심] 현재 시간 표시선 + 깃발(삼각형)
+    now_dt_kst = datetime.datetime.now(KST)
+    
+    # 1. 빨간 수직선
+    fig.add_vline(x=now_dt_kst, line_width=2, line_dash="solid", line_color="red")
+    
+    # 2. 상단 깃발 (삼각형)
+    # yref='paper'를 사용하여 차트 상단(1.0) 위에 배치
+    # Plotly shape path로 삼각형 그리기 (M:시작, L:선긋기, Z:닫기)
+    # 시간축 좌표를 정확히 찍기 위해 add_annotation의 화살표 머리를 활용하거나, 
+    # scatter trace를 추가하는 것이 정확함. 여기서는 annotation marker 활용.
+    fig.add_trace(px.scatter(
+        x=[now_dt_kst], y=[0], 
+    ).data[0])
+    # 위 방식 대신 layout annotation의 arrow 이용이 더 쉬움
+    
+    fig.add_annotation(
+        x=now_dt_kst, y=0, xref="x", yref="paper",
+        text="", showarrow=True,
+        arrowhead=2, arrowsize=1.5, arrowwidth=2, arrowcolor="white", # 흰색 깃발 느낌
+        ax=0, ay=-15 # 위로 살짝 띄움
+    )
 
     fig.update_layout(
         height=dynamic_height, 
@@ -365,9 +398,6 @@ if timeline_data:
         margin=dict(t=80, b=100, l=180, r=10), 
         hoverlabel_align='left',
     )
-    
-    now_dt_kst = datetime.datetime.now(KST)
-    fig.add_vline(x=now_dt_kst, line_width=2, line_dash="dash", line_color="white") 
     
     st.plotly_chart(fig, use_container_width=True, config={'responsive': True})
 else:
