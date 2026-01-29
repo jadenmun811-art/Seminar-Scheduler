@@ -25,7 +25,7 @@ init_time_str = f"{now_init.month}월 {now_init.day}일 {wkdays[now_init.weekday
 st.markdown(
     f"""
     <style>
-    /* 상단 헤더 컨테이너 (타이틀 + 시계) */
+    /* 상단 헤더 컨테이너 */
     .header-container {{
         display: flex;
         justify-content: center;
@@ -37,7 +37,6 @@ st.markdown(
         border-bottom: 3px solid #FF5722;
     }}
     
-    /* 타이틀 스타일 */
     .main-title {{
         font-size: 2.5rem;
         font-weight: 900;
@@ -45,7 +44,6 @@ st.markdown(
         margin: 0;
     }}
     
-    /* 시계 스타일 */
     .live-clock {{
         font-size: 1.8rem;
         font-weight: bold;
@@ -245,36 +243,44 @@ if timeline_data:
     today_str = datetime.datetime.now(KST).strftime("%Y-%m-%d")
     range_x_start = f"{today_str} 07:00"
     range_x_end = f"{today_str} 22:00"
-
-    # [수정] X축: 격자 끄고, 빨간색 테두리 추가
+    
+    # [핵심] 1. 세로 격자선(시간 구분선) 진하게 표시
     fig.update_xaxes(
-        showgrid=False, # 격자 제거
-        showline=True, linewidth=2, linecolor='red', mirror=True, # 빨간색 테두리
+        showgrid=True, gridwidth=1, gridcolor='black', # 검은색 세로선
+        showline=True, linewidth=2, linecolor='black', mirror=True, # 외곽 테두리
         title="", 
         tickformat="%H:%M", 
-        dtick=3600000, 
-        tickmode='linear', tickangle=-45, 
+        dtick=3600000, # 1시간 단위
+        tickmode='linear', 
+        tickangle=0, # [핵심] 0도로 설정하여 가로로 똑바로(중앙 정렬 효과)
         side="top", 
         tickfont=dict(size=14, weight="bold"),
         range=[range_x_start, range_x_end], automargin=True
     )
     
-    # [수정] Y축: 격자 끄고, 빨간색 테두리 추가
+    # [핵심] 2. 가로 격자선 - Y축 grid 대신 add_hline으로 직접 그리기 (칸 나누기)
+    # 기존 Y축 그리드는 끄고, 각 항목 사이사이에 선을 그어줌
     fig.update_yaxes(
-        showgrid=False, # 격자 제거
-        showline=True, linewidth=2, linecolor='red', mirror=True, # 빨간색 테두리
+        showgrid=False, # 기본 그리드는 끔
+        showline=True, linewidth=2, linecolor='black', mirror=True, # 외곽 테두리
         title="", 
         autorange="reversed", 
         tickfont=dict(size=16, weight="bold"),
         automargin=True
     )
     
+    # [핵심] 가로선 직접 그리기 (각 장소 사이에 검은 선)
+    # Plotly Y축 카테고리는 0, 1, 2... 인덱스를 가짐. 그 사이인 0.5, 1.5...에 선을 그음
+    num_locations = len(df['Task'].unique())
+    for i in range(num_locations):
+        fig.add_hline(y=i + 0.5, line_width=1, line_color="black")
+
     fig.update_layout(
         height=dynamic_height, 
         font=dict(size=14), 
         showlegend=True,
-        paper_bgcolor='#F5F5F5',
-        plot_bgcolor='white',    
+        paper_bgcolor='#F5F5F5', # Y축 라벨 영역 배경색
+        plot_bgcolor='white',    # 차트 내부 배경색
         margin=dict(t=80, b=100, l=10, r=10), 
         hoverlabel_align='left',
         legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5)
