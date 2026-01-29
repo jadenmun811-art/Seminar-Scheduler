@@ -11,7 +11,7 @@ import pytz
 import streamlit.components.v1 as components
 
 # ==========================================
-# 1. 기본 설정 & CSS (배민 도현체 적용)
+# 1. 기본 설정 & CSS (배민 도현 + 당근 스타일 버튼)
 # ==========================================
 st.set_page_config(layout="wide", page_title="Seminar Schedule (Web) 🐾")
 
@@ -19,39 +19,71 @@ KST = pytz.timezone('Asia/Seoul')
 
 now_init = datetime.datetime.now(KST)
 wkdays = ["월", "화", "수", "목", "금", "토", "일"]
-init_time_str = f"🕒 {now_init.month}월 {now_init.day}일 {wkdays[now_init.weekday()]}요일 {now_init.strftime('%H:%M:%S')}"
+init_time_str = f"{now_init.month}월 {now_init.day}일 {wkdays[now_init.weekday()]}요일 {now_init.strftime('%H:%M:%S')}"
 
 st.markdown(
     f"""
     <style>
-    /* 구글 웹폰트 (배민 도현체 - Do Hyeon) 임포트 */
+    /* 1. 폰트 임포트 (Do Hyeon) */
     @import url('https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap');
 
-    /* 전체 폰트 적용 */
     html, body, [class*="css"] {{
         font-family: 'Do Hyeon', sans-serif !important;
     }}
 
+    /* 2. 상단 헤더 (키치한 느낌) */
     .header-container {{
         display: flex; justify-content: center; align-items: center; gap: 20px; 
-        padding: 1rem 0; margin-bottom: 1rem; background-color: white; border-bottom: 3px solid #FF007F;
+        padding: 1.5rem 0; margin-bottom: 2rem; 
+        background-color: #FFFFFF; 
+        border-bottom: 4px solid #333333; /* 굵은 검은 선 */
     }}
-    .main-title {{ font-size: 2.5rem; color: #333333; margin: 0; }}
-    .live-clock {{ font-size: 1.8rem; color: #FF007F; }} 
+    .main-title {{ 
+        font-size: 3rem; 
+        color: #333333; 
+        margin: 0; 
+        text-shadow: 2px 2px 0px #EEEEEE; /* 팝아트 그림자 */
+    }}
+    .live-clock {{ 
+        font-size: 2rem; 
+        color: #F94680; /* 핫핑크 */
+        background: #FFF0F5;
+        padding: 5px 15px;
+        border: 2px solid #F94680;
+        border-radius: 15px;
+    }} 
 
+    /* 3. "당근" 스타일 버튼 커스텀 (보내주신 사진 참고) */
+    div.stButton > button {{
+        background-color: #FF6E56 !important; /* 당근색 */
+        color: white !important;
+        font-family: 'Do Hyeon', sans-serif !important;
+        font-size: 24px !important;
+        border: none !important;
+        border-radius: 12px !important;
+        padding: 10px 20px !important;
+        box-shadow: 0px 4px 0px #C94530 !important; /* 입체 버튼 효과 */
+        transition: all 0.1s;
+        width: 100%;
+    }}
+    div.stButton > button:active {{
+        transform: translateY(4px);
+        box-shadow: 0px 0px 0px #C94530 !important;
+    }}
+
+    /* 모바일 대응 */
     @media only screen and (max-width: 768px) {{
-        .header-container {{ flex-direction: column; gap: 5px; }}
-        .main-title {{ font-size: 1.5rem; }}
-        .live-clock {{ font-size: 1.2rem; }}
+        .header-container {{ flex-direction: column; gap: 10px; }}
+        .main-title {{ font-size: 2rem; }}
+        .live-clock {{ font-size: 1.5rem; }}
         .block-container {{ padding-top: 1rem; }}
     }}
     
     .block-container {{ padding-top: 2rem; }}
-    div.stButton > button {{ white-space: nowrap; width: 100%; font-family: 'Do Hyeon', sans-serif; font-size: 1.2rem; }}
     </style>
     
     <div class="header-container">
-        <div class="main-title">✨ SEMINAR SCHEDULE 🐾</div>
+        <div class="main-title">✨ SEMINAR SCHEDULE</div>
         <div class="live-clock" id="live-clock">{init_time_str}</div>
     </div>
     """,
@@ -111,24 +143,15 @@ def parse_time_str(time_str):
     except: return None
     return None
 
+# [수정] 트로피컬 스플래시 (Tropical Splash) 팔레트 적용
+# 사진에서 추출한 쨍한 색감들
 COLOR_PALETTE = {
-    "종료": "#EEEEEE",        
-    "ON AIR": "#FF007F",      
-    "셋팅중": "#FF8C00",      
-    "셋팅임박": "#FF8C00",    
-    "대기(행사)": "#32CD32",  
-    "대기(셋팅)": "#B0B0B0"   
-}
-
-# [신규] 패턴 맵핑 (입체감용)
-# 셋팅은 빗금(/), 본행사는 솔리드(없음) -> 질감 차이로 입체감 부여
-PATTERN_MAP = {
-    "종료": "",
-    "ON AIR": "",
-    "셋팅중": "/", 
-    "셋팅임박": "/",
-    "대기(행사)": "",
-    "대기(셋팅)": "/" 
+    "종료": "#E0E0E0",        # 회색
+    "ON AIR": "#F94680",      # Hot Pink (사진 참고) - 행사 진행중
+    "셋팅중": "#FEBD17",      # Yellow (사진 참고) - 준비중
+    "셋팅임박": "#FEBD17",    # Yellow
+    "대기(행사)": "#1BC0BA",  # Teal/Mint (사진 참고) - 대기
+    "대기(셋팅)": "#D1D1D1"   # 짙은 회색
 }
 
 def shorten_location(loc_name):
@@ -152,17 +175,14 @@ def extract_schedule(raw_text):
             line1 = lines[0]
             date_match = re.search(r'(\d{1,2})\.(\d{1,2})', line1)
             if date_match: 
-                try:
-                    data['date_obj'] = datetime.date(today_kst.year, int(date_match.group(1)), int(date_match.group(2)))
-                except ValueError:
-                    data['date_obj'] = today_kst
+                try: data['date_obj'] = datetime.date(today_kst.year, int(date_match.group(1)), int(date_match.group(2)))
+                except ValueError: data['date_obj'] = today_kst
 
             if '/' in line1:
                 times_part = line1.split(')')[-1] if ')' in line1 else line1
                 parts = times_part.split('/')
                 data['start'] = parse_time_str(parts[0])
-                if len(parts) > 1:
-                    data['setup'] = parse_time_str(parts[1])
+                if len(parts) > 1: data['setup'] = parse_time_str(parts[1])
 
         if len(lines) > 1:
             line2 = lines[1]
@@ -202,30 +222,21 @@ def extract_schedule(raw_text):
                 broadcast_style = "color: #D32F2F; font-weight: bold;" if "생중계" in data['simple_remark'] else "color: #388E3C; font-weight: bold;"
                 
                 desc = f"""<div style='text-align: left; font-family: "Do Hyeon", sans-serif; font-size: 14px; line-height: 1.6;'>
-                    <span style='color: #FF007F; font-size: 16px;'>🐻 [{data['location']}]</span><br>
+                    <span style='color: #F94680; font-size: 16px;'>🐻 [{data['location']}]</span><br>
                     <span style='color: #333;'>♥ 의원실: {data['office']}</span><br>
                     <span style='color: #333;'>📝 제　목: {data['title']}</span><br>
                     <span style='color: #333;'>⏰ 시　간: {setup_dt.strftime('%H:%M')} (셋팅) ~ {start_dt.strftime('%H:%M')} (시작)</span><br>
                     <span style='color: #333;'>👤 담당자: {data['staff']}</span><br>
                     <span style='{broadcast_style}'>📺 방　송: {data['simple_remark']}</span></div>"""
 
-                if "," in data['staff']:
-                    staff_display = data['staff'].replace(",", "<br>")
-                else:
-                    staff_display = data['staff']
+                if "," in data['staff']: staff_display = data['staff'].replace(",", "<br>")
+                else: staff_display = data['staff']
 
-                schedule_data.append(dict(Task=data['location'], Start=setup_dt, Finish=start_dt, Resource="셋팅", Status=setup_status, Color=setup_color, BarText="SET", Description=desc, Opacity=0.9))
-                schedule_data.append(dict(Task=data['location'], Start=start_dt, Finish=end_dt, Resource="본행사", Status=main_status, Color=main_color, 
-                    BarText=staff_display, 
-                    Description=desc, Opacity=1.0))
+                schedule_data.append(dict(Task=data['location'], Start=setup_dt, Finish=start_dt, Resource="셋팅", Status=setup_status, Color=setup_color, BarText="SET", Description=desc, Opacity=1.0))
+                schedule_data.append(dict(Task=data['location'], Start=start_dt, Finish=end_dt, Resource="본행사", Status=main_status, Color=main_color, BarText=staff_display, Description=desc, Opacity=1.0))
                 
-                js_events.append({ 
-                    "location": data['location'], 
-                    "setup_ts": setup_dt.timestamp() * 1000,
-                    "staff": data['staff'] 
-                })
-            except Exception:
-                continue
+                js_events.append({ "location": data['location'], "setup_ts": setup_dt.timestamp() * 1000, "staff": data['staff'] })
+            except Exception: continue
 
     return schedule_data, js_events
 
@@ -261,27 +272,23 @@ timeline_data, js_events = extract_schedule(st.session_state['input_text'])
 
 if timeline_data:
     df = pd.DataFrame(timeline_data)
-    
     df['ShortTask'] = df['Task'].apply(shorten_location)
-
     dynamic_height = max(800, len(df['Task'].unique()) * 80 + 200)
 
-    # [수정] pattern_shape 추가 (질감 표현)
     fig = px.timeline(
         df, x_start="Start", x_end="Finish", y="ShortTask", 
         color="Status", text="BarText", custom_data=["Description"], 
         color_discrete_map=COLOR_PALETTE,
-        pattern_shape="Status", pattern_shape_map=PATTERN_MAP, # 텍스처 맵핑
-        opacity=1.0 # 100% 불투명으로 쨍하게
+        opacity=1.0 # 쨍한 색감
     )
     
-    # [수정] 테두리 두께 3px, 검은색 -> 팝아트 느낌 강조
+    # [수정] POP 스타일 적용: 굵은 테두리(3px) + 쨍한 글씨
     fig.update_traces(
         textposition='inside', insidetextanchor='middle', 
         hovertemplate="%{customdata[0]}<extra></extra>", 
-        hoverlabel=dict(font_size=14, font_family="Do Hyeon", align="left"),
-        textfont=dict(size=30, family="Do Hyeon"), 
-        marker=dict(line=dict(width=3, color='black')) # 두꺼운 검은 테두리
+        hoverlabel=dict(font_size=16, font_family="Do Hyeon", align="left"),
+        textfont=dict(size=30, family="Do Hyeon", color="black"), # 담당자 이름 (30px, 검은색)
+        marker=dict(line=dict(width=3, color='black')) # [핵심] 만화 같은 굵은 테두리
     )
     
     today_str = datetime.datetime.now(KST).strftime("%Y-%m-%d")
@@ -305,7 +312,7 @@ if timeline_data:
         showgrid=False, 
         showline=True, linewidth=3, linecolor='black', mirror=True,
         showticklabels=True, 
-        tickfont=dict(size=40, family="Do Hyeon", color="black"), 
+        tickfont=dict(size=45, family="Do Hyeon", color="black"), # 장소 이름 (45px, 대폭 확대)
         title="", 
         autorange="reversed", 
         automargin=True
@@ -319,11 +326,11 @@ if timeline_data:
         height=dynamic_height, 
         font=dict(size=14, family="Do Hyeon"), 
         showlegend=True,
-        paper_bgcolor='white', 
-        plot_bgcolor='white',    
-        margin=dict(t=80, b=100, l=150, r=10), 
+        paper_bgcolor='#FFFFFF', 
+        plot_bgcolor='#F9F9F9', # 아주 연한 회색 배경 (차트 영역 구분)
+        margin=dict(t=80, b=100, l=180, r=10), 
         hoverlabel_align='left',
-        legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5)
+        legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5, font=dict(size=18))
     )
     
     now_dt_kst = datetime.datetime.now(KST)
@@ -334,7 +341,7 @@ else:
     st.info("👈 왼쪽 사이드바에 스케줄을 입력하고 '🥕 스케줄 불러오기'를 누르세요.")
 
 # ==========================================
-# 5. JavaScript (TTS 기능 유지)
+# 5. JavaScript (기존 TTS 유지)
 # ==========================================
 js_events_json = json.dumps(js_events)
 js_tts_enabled = str(tts_enabled).lower()
