@@ -162,12 +162,10 @@ def extract_schedule(raw_text):
                 <span style='color: var(--text-color);'>👤 담당자: {data['staff']}</span><br>
                 <span style='{broadcast_style}'>📺 방　송: {data['simple_remark']}</span></div>"""
 
-            # [핵심 수정] BarText에 줄바꿈(<br>) 적용 -> 두 줄 표시
-            # SET은 글자가 짧으니 그대로 두고, 본행사(Resource="본행사") 쪽에만 적용
-            
+            # [핵심 수정] 줄바꿈(<br>) 사이에 가로줄(──────) 추가
             schedule_data.append(dict(Task=data['location'], Start=setup_dt, Finish=start_dt, Resource="셋팅", Status=setup_status, Color=setup_color, BarText="SET", Description=desc, Opacity=0.8))
             schedule_data.append(dict(Task=data['location'], Start=start_dt, Finish=end_dt, Resource="본행사", Status=main_status, Color=main_color, 
-                BarText=f"{data['office']}<br>{data['staff']}", # 줄바꿈 적용
+                BarText=f"{data['office']}<br>──────<br>{data['staff']}", # 구분선 추가
                 Description=desc, Opacity=1.0))
             
             js_events.append({ "location": data['location'], "setup_ts": setup_dt.timestamp() * 1000 })
@@ -208,8 +206,6 @@ timeline_data, js_events = extract_schedule(st.session_state['input_text'])
 
 if timeline_data:
     df = pd.DataFrame(timeline_data)
-    
-    # [수정] 차트 칸 높이를 더 넉넉하게 (60 -> 80)
     dynamic_height = max(800, len(df['Task'].unique()) * 80 + 200)
 
     fig = px.timeline(
@@ -224,7 +220,7 @@ if timeline_data:
         hovertemplate="%{customdata[0]}<extra></extra>", 
         hoverlabel=dict(font_size=14, font_family="Malgun Gothic", align="left"),
         
-        # [핵심 수정] 글자 크기 16px -> 18px 로 확대
+        # 글자 크기 18px, 볼드체, 테두리 유지
         textfont=dict(size=18, weight="bold"),
         marker=dict(line=dict(width=2, color='#424242'))
     )
