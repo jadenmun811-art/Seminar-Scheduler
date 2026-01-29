@@ -11,7 +11,7 @@ import pytz
 import streamlit.components.v1 as components
 
 # ==========================================
-# 1. 기본 설정 & CSS (나눔고딕 폰트 적용)
+# 1. 기본 설정 & CSS (배민 도현체 적용)
 # ==========================================
 st.set_page_config(layout="wide", page_title="Seminar Schedule (Web) 🐾")
 
@@ -24,20 +24,20 @@ init_time_str = f"🕒 {now_init.month}월 {now_init.day}일 {wkdays[now_init.we
 st.markdown(
     f"""
     <style>
-    /* 구글 웹폰트 (나눔고딕) 임포트 */
-    @import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700;800&display=swap');
+    /* 구글 웹폰트 (배민 도현체 - Do Hyeon) 임포트 */
+    @import url('https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap');
 
     /* 전체 폰트 적용 */
     html, body, [class*="css"] {{
-        font-family: 'Nanum Gothic', sans-serif !important;
+        font-family: 'Do Hyeon', sans-serif !important;
     }}
 
     .header-container {{
         display: flex; justify-content: center; align-items: center; gap: 20px; 
         padding: 1rem 0; margin-bottom: 1rem; background-color: white; border-bottom: 3px solid #FF007F;
     }}
-    .main-title {{ font-size: 2.5rem; font-weight: 900; color: #333333; margin: 0; }}
-    .live-clock {{ font-size: 1.8rem; font-weight: bold; color: #FF007F; }} /* 네온 핑크 시계 */
+    .main-title {{ font-size: 2.5rem; color: #333333; margin: 0; }}
+    .live-clock {{ font-size: 1.8rem; color: #FF007F; }} 
 
     @media only screen and (max-width: 768px) {{
         .header-container {{ flex-direction: column; gap: 5px; }}
@@ -47,7 +47,7 @@ st.markdown(
     }}
     
     .block-container {{ padding-top: 2rem; }}
-    div.stButton > button {{ white-space: nowrap; width: 100%; font-family: 'Nanum Gothic', sans-serif; }}
+    div.stButton > button {{ white-space: nowrap; width: 100%; font-family: 'Do Hyeon', sans-serif; font-size: 1.2rem; }}
     </style>
     
     <div class="header-container">
@@ -111,20 +111,20 @@ def parse_time_str(time_str):
     except: return None
     return None
 
-# POP & VIVID 컬러 팔레트
 COLOR_PALETTE = {
     "종료": "#EEEEEE",        
-    "ON AIR": "#FF007F",      # 네온 핑크
-    "셋팅중": "#FF8C00",      # 비비드 오렌지
+    "ON AIR": "#FF007F",      
+    "셋팅중": "#FF8C00",      
     "셋팅임박": "#FF8C00",    
-    "대기(행사)": "#32CD32",  # 라임 그린
-    "대기(셋팅)": "#B0B0B0"   # 쿨 그레이
+    "대기(행사)": "#32CD32",  
+    "대기(셋팅)": "#B0B0B0"   
 }
 
+# 장소 이름 줄이기 함수
 def shorten_location(loc_name):
     match = re.search(r'(\d+)\s*([가-힣])', loc_name)
     if match:
-        return f"{match.group(1)}{match.group(2)}"
+        return f"{match.group(1)}{match.group(2)}" # 예: 1세
     return loc_name[:2]
 
 def extract_schedule(raw_text):
@@ -191,8 +191,8 @@ def extract_schedule(raw_text):
 
                 broadcast_style = "color: #D32F2F; font-weight: bold;" if "생중계" in data['simple_remark'] else "color: #388E3C; font-weight: bold;"
                 
-                desc = f"""<div style='text-align: left; font-family: "Nanum Gothic", sans-serif; font-size: 14px; line-height: 1.6;'>
-                    <span style='color: #FF007F; font-size: 16px; font-weight: 800;'>🐻 [{data['location']}]</span><br>
+                desc = f"""<div style='text-align: left; font-family: "Do Hyeon", sans-serif; font-size: 14px; line-height: 1.6;'>
+                    <span style='color: #FF007F; font-size: 16px;'>🐻 [{data['location']}]</span><br>
                     <span style='color: #333;'>♥ 의원실: {data['office']}</span><br>
                     <span style='color: #333;'>📝 제　목: {data['title']}</span><br>
                     <span style='color: #333;'>⏰ 시　간: {setup_dt.strftime('%H:%M')} (셋팅) ~ {start_dt.strftime('%H:%M')} (시작)</span><br>
@@ -209,7 +209,6 @@ def extract_schedule(raw_text):
                     BarText=staff_display, 
                     Description=desc, Opacity=1.0))
                 
-                # [수정] JS로 넘길 데이터에 'staff' 정보 추가 (TTS용)
                 js_events.append({ 
                     "location": data['location'], 
                     "setup_ts": setup_dt.timestamp() * 1000,
@@ -252,10 +251,15 @@ timeline_data, js_events = extract_schedule(st.session_state['input_text'])
 
 if timeline_data:
     df = pd.DataFrame(timeline_data)
+    
+    # [핵심] 차트 그리기 전, 장소 이름을 2글자로 미리 줄임 (Y축 라벨용)
+    df['ShortTask'] = df['Task'].apply(shorten_location)
+
     dynamic_height = max(800, len(df['Task'].unique()) * 80 + 200)
 
+    # y=ShortTask (줄인 이름) 사용
     fig = px.timeline(
-        df, x_start="Start", x_end="Finish", y="Task", 
+        df, x_start="Start", x_end="Finish", y="ShortTask", 
         color="Status", text="BarText", custom_data=["Description"], 
         color_discrete_map=COLOR_PALETTE,
         opacity=0.9
@@ -264,8 +268,8 @@ if timeline_data:
     fig.update_traces(
         textposition='inside', insidetextanchor='middle', 
         hovertemplate="%{customdata[0]}<extra></extra>", 
-        hoverlabel=dict(font_size=14, font_family="Nanum Gothic", align="left"),
-        textfont=dict(size=22, family="Nanum Gothic"), 
+        hoverlabel=dict(font_size=14, font_family="Do Hyeon", align="left"),
+        textfont=dict(size=22, family="Do Hyeon"), 
         marker=dict(line=dict(width=2, color='#333333')) 
     )
     
@@ -282,40 +286,33 @@ if timeline_data:
         dtick=3600000, 
         tickmode='linear', tickangle=0, 
         side="top", 
-        tickfont=dict(size=20, family="Nanum Gothic", color="black"), 
+        tickfont=dict(size=20, family="Do Hyeon", color="black"), 
         range=[range_x_start, range_x_end], automargin=True
     )
     
+    # [핵심 수정] Y축 라벨 켜기 (showticklabels=True) -> 박스 밖으로 자동 배치
     fig.update_yaxes(
         showgrid=False, 
         showline=True, linewidth=2, linecolor='black', mirror=True,
-        showticklabels=False, 
+        showticklabels=True, # 라벨 켜기
+        tickfont=dict(size=30, family="Do Hyeon", color="black"), # 30px 배민체
         title="", 
         autorange="reversed", 
         automargin=True
     )
     
-    unique_tasks = df['Task'].unique()
-    for i, task in enumerate(unique_tasks):
+    # 가로 구분선 (검은색)
+    unique_tasks = df['ShortTask'].unique()
+    for i in range(len(unique_tasks)):
         fig.add_hline(y=i + 0.5, line_width=1, line_color="black")
-        
-        short_task = shorten_location(task)
-        
-        # 장소 이름 텍스트 위치
-        fig.add_annotation(
-            x=-0.01, xref="paper", y=i, yref="y",
-            text=f"<b>{short_task}</b>", showarrow=False,
-            font=dict(size=35, color="black", family="Nanum Gothic"), 
-            align="right"
-        )
 
     fig.update_layout(
         height=dynamic_height, 
-        font=dict(size=14, family="Nanum Gothic"), 
+        font=dict(size=14, family="Do Hyeon"), 
         showlegend=True,
         paper_bgcolor='white', 
         plot_bgcolor='white',    
-        margin=dict(t=80, b=100, l=200, r=10), # l=200
+        margin=dict(t=80, b=100, l=150, r=10), # 왼쪽 여백 확보 (라벨 공간)
         hoverlabel_align='left',
         legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5)
     )
@@ -328,7 +325,7 @@ else:
     st.info("👈 왼쪽 사이드바에 스케줄을 입력하고 '🥕 스케줄 불러오기'를 누르세요.")
 
 # ==========================================
-# 5. JavaScript (TTS 멘트 수정됨)
+# 5. JavaScript (TTS 담당자 호명 유지)
 # ==========================================
 js_events_json = json.dumps(js_events)
 js_tts_enabled = str(tts_enabled).lower()
@@ -358,7 +355,6 @@ components.html(
                 if (diffMins >= 4.9 && diffMins <= 5.1) {{
                     const key = event.location + "_5min";
                     if (!announced.has(key)) {{ 
-                        // [수정] TTS 멘트에 담당자 이름 추가
                         speak(event.location + ", 셋팅 시작 5분 전입니다. " + event.staff + " 준비해 주세요."); 
                         announced.add(key); 
                     }}
