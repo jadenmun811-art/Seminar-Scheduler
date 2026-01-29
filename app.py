@@ -17,27 +17,50 @@ st.set_page_config(layout="wide", page_title="Seminar Schedule (Web) 🐾")
 
 KST = pytz.timezone('Asia/Seoul')
 
+# 상단 파이썬 시간 미리 계산
 now_init = datetime.datetime.now(KST)
 wkdays = ["월", "화", "수", "목", "금", "토", "일"]
-init_time_str = f"🕒 {now_init.month}월 {now_init.day}일 {wkdays[now_init.weekday()]}요일 {now_init.strftime('%H:%M:%S')}"
+init_time_str = f"{now_init.month}월 {now_init.day}일 {wkdays[now_init.weekday()]}요일 {now_init.strftime('%H:%M:%S')}"
 
 st.markdown(
     f"""
     <style>
+    /* 상단 헤더 컨테이너 */
     .header-container {{
-        display: flex; justify-content: center; align-items: center; gap: 20px; 
-        padding: 1rem 0; margin-bottom: 1rem; background-color: white; border-bottom: 3px solid #FF5722;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 20px; 
+        padding: 1rem 0;
+        margin-bottom: 1rem;
+        background-color: white;
+        border-bottom: 3px solid #FF5722;
     }}
-    .main-title {{ font-size: 2.5rem; font-weight: 900; color: #212121; margin: 0; }}
-    .live-clock {{ font-size: 1.8rem; font-weight: bold; color: #FF5722; }}
+    
+    .main-title {{
+        font-size: 2.5rem;
+        font-weight: 900;
+        color: #212121;
+        margin: 0;
+    }}
+    
+    .live-clock {{
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: #FF5722;
+    }}
+
     @media only screen and (max-width: 768px) {{
         .header-container {{ flex-direction: column; gap: 5px; }}
         .main-title {{ font-size: 1.5rem; }}
         .live-clock {{ font-size: 1.2rem; }}
+        .block-container {{ padding-top: 1rem; }}
     }}
+    
     .block-container {{ padding-top: 2rem; }}
     div.stButton > button {{ white-space: nowrap; width: 100%; }}
     </style>
+    
     <div class="header-container">
         <div class="main-title">✨ SEMINAR SCHEDULE 🐾</div>
         <div class="live-clock" id="live-clock">{init_time_str}</div>
@@ -98,6 +121,16 @@ def parse_time_str(time_str):
     except: return None
     return None
 
+# [수정] 색상 팔레트 적용 (Tropical Splash 참조)
+COLOR_PALETTE = {
+    "종료": "#E0E0E0",
+    "ON AIR": "#FEBD17",      # 노랑
+    "대기(셋팅)": "#FDB8D9",  # 연분홍
+    "셋팅중": "#F94680",      # 진분홍
+    "셋팅임박": "#F94680",    # 진분홍
+    "대기(행사)": "#1BC0BA"   # 청록
+}
+
 def extract_schedule(raw_text):
     schedule_data = []
     js_events = [] 
@@ -141,14 +174,17 @@ def extract_schedule(raw_text):
             end_dt = start_dt + datetime.timedelta(hours=2)
             now = datetime.datetime.now(KST)
             
-            setup_status = "대기(셋팅)"; setup_color = "#B0BEC5"
-            main_status = "대기(행사)"; main_color = "#90CAF9"
+            setup_status = "대기(셋팅)";
+            main_status = "대기(행사)";
             
-            if now >= end_dt: setup_status = main_status = "종료"; setup_color = main_color = "#E0E0E0"
-            elif start_dt <= now < end_dt: setup_status = "종료"; setup_color = "#E0E0E0"; main_status = "ON AIR"; main_color = "#FF8A65"
-            elif setup_dt <= now < start_dt: setup_status = "셋팅중"; setup_color = "#FFF176"; main_status = "대기(행사)"; main_color = "#90CAF9"
-            elif (setup_dt - datetime.timedelta(minutes=30)) <= now < setup_dt: setup_status = "셋팅임박"; setup_color = "#81C784"
+            if now >= end_dt: setup_status = main_status = "종료";
+            elif start_dt <= now < end_dt: setup_status = "종료"; main_status = "ON AIR";
+            elif setup_dt <= now < start_dt: setup_status = "셋팅중"; main_status = "대기(행사)";
+            elif (setup_dt - datetime.timedelta(minutes=30)) <= now < setup_dt: setup_status = "셋팅임박";
             
+            setup_color = COLOR_PALETTE[setup_status]
+            main_color = COLOR_PALETTE[main_status]
+
             broadcast_style = "color: #D32F2F; font-weight: bold;" if "생중계" in data['simple_remark'] else "color: #388E3C; font-weight: bold;"
             
             desc = f"""<div style='text-align: left; font-family: "Malgun Gothic", sans-serif; font-size: 14px; line-height: 1.6;'>
@@ -159,9 +195,12 @@ def extract_schedule(raw_text):
                 <span style='color: var(--text-color);'>👤 담당자: {data['staff']}</span><br>
                 <span style='{broadcast_style}'>📺 방　송: {data['simple_remark']}</span></div>"""
 
-            schedule_data.append(dict(Task=data['location'], Start=setup_dt, Finish=start_dt, Resource="셋팅", Status=setup_status, Color=setup_color, BarText="SET", Description=desc, Opacity=0.8))
+            # [수정] 담당자만 표시, 여러 명일 경우 줄바꿈
+            staff_text = data['staff'].replace(",", "<br>").replace(" ", "<br>") if "," in data['staff'] or " " in data['staff'] else data['staff']
+
+            schedule_data.append(dict(Task=data['location'], Start=setup_dt, Finish=start_dt, Resource="셋팅", Status=setup_status, Color=setup_color, BarText="SET", Description=desc, Opacity=0.9))
             schedule_data.append(dict(Task=data['location'], Start=start_dt, Finish=end_dt, Resource="본행사", Status=main_status, Color=main_color, 
-                BarText=f"{data['office']}<br>──────<br>{data['staff']}",
+                BarText=staff_text, # 담당자만 표시
                 Description=desc, Opacity=1.0))
             
             js_events.append({ "location": data['location'], "setup_ts": setup_dt.timestamp() * 1000 })
@@ -205,73 +244,66 @@ if timeline_data:
     fig = px.timeline(
         df, x_start="Start", x_end="Finish", y="Task", 
         color="Status", text="BarText", custom_data=["Description"], 
-        color_discrete_map={"종료": "#E0E0E0", "ON AIR": "#FF8A65", "셋팅중": "#FFF176", "셋팅임박": "#81C784", "대기(행사)": "#90CAF9", "대기(셋팅)": "#B0BEC5"},
+        color_discrete_map=COLOR_PALETTE, # [수정] 새로운 색상 팔레트 적용
         opacity=0.9
     )
     
+    # [수정] 글자 크기 확대 및 입체감 테두리
     fig.update_traces(
         textposition='inside', insidetextanchor='middle', 
         hovertemplate="%{customdata[0]}<extra></extra>", 
         hoverlabel=dict(font_size=14, font_family="Malgun Gothic", align="left"),
-        textfont=dict(size=18, weight="bold"),
-        marker=dict(line=dict(width=2, color='#424242'))
+        textfont=dict(size=20, weight="bold"), # [수정] 글자 크기 20px로 확대
+        marker=dict(line=dict(width=2, color='#555555')) # [수정] 진한 회색 테두리로 입체감 표현
     )
     
     today_str = datetime.datetime.now(KST).strftime("%Y-%m-%d")
     range_x_start = f"{today_str} 07:00"
     range_x_end = f"{today_str} 22:00"
 
-    # [핵심] 시간축 설정 (세로선 제거, 눈금 강화)
+    # [수정] 상단 시간 글씨 크기 확대
     fig.update_xaxes(
-        showgrid=False, # 가운데 세로선 제거
-        showline=True, linewidth=2, linecolor='black', mirror=True, # 외곽 테두리
-        ticks="inside", tickwidth=2, tickcolor='black', ticklen=10, # 눈금(Tick)을 자처럼 보이게
+        showgrid=False, 
+        showline=True, linewidth=2, linecolor='black', mirror=True, 
+        ticks="inside", tickwidth=2, tickcolor='black', ticklen=10, 
         title="", 
         tickformat="%H:%M", 
         dtick=3600000, 
         tickmode='linear', tickangle=0, 
         side="top", 
-        tickfont=dict(size=14, weight="bold"),
+        tickfont=dict(size=18, weight="bold"), # [수정] 시간 글씨 크기 18px로 확대
         range=[range_x_start, range_x_end], automargin=True
     )
     
-    # [핵심] Y축 설정 (기본 글자 끄고, 밑에서 Annotation으로 네모칸 그림)
     fig.update_yaxes(
         showgrid=False, 
         showline=True, linewidth=2, linecolor='black', mirror=True,
-        showticklabels=False, # 원래 글자 끄기
+        showticklabels=False,
         title="", 
         autorange="reversed", 
         automargin=True
     )
     
-    # [핵심] 가로선(Row Divider) 및 장소 네모칸(Annotation) 그리기
+    # 가로선 및 장소 네모칸 그리기
     unique_tasks = df['Task'].unique()
     for i, task in enumerate(unique_tasks):
-        # 1. 가로 구분선 (검은색)
         fig.add_hline(y=i + 0.5, line_width=1, line_color="black")
-        
-        # 2. 좌측 장소 네모칸 (Annotation Box)
         fig.add_annotation(
-            x=-0.01, xref="paper", # 차트 바로 왼쪽
-            y=i, yref="y",         # 해당 행의 중앙
-            text=f"<b>{task}</b>",
-            showarrow=False,
+            x=-0.01, xref="paper", y=i, yref="y",
+            text=f"<b>{task}</b>", showarrow=False,
             font=dict(size=16, color="black"),
-            bgcolor="#E0E0E0",     # 배경색 (연회색)
-            bordercolor="black",   # 테두리 (검은색)
-            borderwidth=2,         # 두께
-            width=150,             # 박스 너비 고정
-            align="center"
+            bgcolor="#E0E0E0", bordercolor="black", borderwidth=2,
+            width=150, align="center"
         )
 
+    # [수정] 장소 배경색 변경 (차트와 안 겹치게)
     fig.update_layout(
         height=dynamic_height, 
         font=dict(size=14), 
         showlegend=True,
-        paper_bgcolor='white', 
+        paper_bgcolor='#F0F2F6', # [수정] Y축 영역 배경색 변경 (연한 회색)
         plot_bgcolor='white',    
-        margin=dict(t=80, b=100, l=170, r=10), # l=170: 왼쪽 여백 확보 (네모칸 들어갈 자리)
+        margin=dict(t=80, b=100, l=170, r=10),
         hoverlabel_align='left',
         legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5)
     )
@@ -345,3 +377,4 @@ components.html(
     """,
     height=0
 )
+
