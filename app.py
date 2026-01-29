@@ -97,7 +97,7 @@ def set_input_text(text):
     st.session_state['input_text'] = text
 
 # ==========================================
-# 3. 데이터 파싱 (안전장치 추가됨)
+# 3. 데이터 파싱
 # ==========================================
 def parse_time_str(time_str):
     try:
@@ -106,7 +106,7 @@ def parse_time_str(time_str):
         if match:
             hour = int(match.group(1))
             minute = int(match.group(2)) if match.group(2) else 0
-            # [수정] 시간 범위 체크 (ValueError 방지)
+            # [안전장치] 시간 범위 체크
             if 0 <= hour <= 23 and 0 <= minute <= 59:
                 return datetime.time(hour, minute)
     except: return None
@@ -143,10 +143,8 @@ def extract_schedule(raw_text):
             date_match = re.search(r'(\d{1,2})\.(\d{1,2})', line1)
             if date_match: 
                 try:
-                    # [수정] 날짜 생성 시 ValueError(예: 13월 99일) 방지
                     data['date_obj'] = datetime.date(today_kst.year, int(date_match.group(1)), int(date_match.group(2)))
                 except ValueError:
-                    # 날짜가 잘못된 경우 오늘 날짜로 대체하거나 패스
                     data['date_obj'] = today_kst
 
             if '/' in line1:
@@ -175,7 +173,6 @@ def extract_schedule(raw_text):
 
         if data['start'] and data['setup']:
             try:
-                # [수정] datetime 결합 시 발생할 수 있는 잠재적 오류 방지
                 start_dt = KST.localize(datetime.datetime.combine(data['date_obj'], data['start']))
                 setup_dt = KST.localize(datetime.datetime.combine(data['date_obj'], data['setup']))
                 end_dt = start_dt + datetime.timedelta(hours=2)
@@ -214,7 +211,7 @@ def extract_schedule(raw_text):
                 
                 js_events.append({ "location": data['location'], "setup_ts": setup_dt.timestamp() * 1000 })
             except Exception:
-                continue # 날짜 계산 중 에러 발생 시 해당 건너뜀
+                continue
 
     return schedule_data, js_events
 
@@ -259,11 +256,12 @@ if timeline_data:
         opacity=0.9
     )
     
+    # [수정] tickfont에서 weight 제거 (에러 해결)
     fig.update_traces(
         textposition='inside', insidetextanchor='middle', 
         hovertemplate="%{customdata[0]}<extra></extra>", 
         hoverlabel=dict(font_size=14, font_family="Nanum Gothic", align="left"),
-        textfont=dict(size=18, weight="bold", family="Nanum Gothic"), 
+        textfont=dict(size=18, family="Nanum Gothic"), # weight 제거
         marker=dict(line=dict(width=2, color='#333333')) 
     )
     
@@ -271,6 +269,7 @@ if timeline_data:
     range_x_start = f"{today_str} 05:00"
     range_x_end = f"{today_str} 21:00"
 
+    # [수정] tickfont에서 weight 제거 (에러 해결)
     fig.update_xaxes(
         showgrid=False, 
         showline=True, linewidth=2, linecolor='black', mirror=True, 
@@ -280,7 +279,7 @@ if timeline_data:
         dtick=3600000, 
         tickmode='linear', tickangle=0, 
         side="top", 
-        tickfont=dict(size=20, weight="800", family="Nanum Gothic", color="black"), 
+        tickfont=dict(size=20, family="Nanum Gothic", color="black"), # weight 제거
         range=[range_x_start, range_x_end], automargin=True
     )
     
