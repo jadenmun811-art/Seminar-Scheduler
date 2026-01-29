@@ -97,7 +97,7 @@ def set_input_text(text):
     st.session_state['input_text'] = text
 
 # ==========================================
-# 3. 데이터 파싱
+# 3. 데이터 파싱 (안전장치 추가됨)
 # ==========================================
 def parse_time_str(time_str):
     try:
@@ -106,28 +106,25 @@ def parse_time_str(time_str):
         if match:
             hour = int(match.group(1))
             minute = int(match.group(2)) if match.group(2) else 0
-            return datetime.time(hour, minute)
+            # [수정] 시간 범위 체크 (ValueError 방지)
+            if 0 <= hour <= 23 and 0 <= minute <= 59:
+                return datetime.time(hour, minute)
     except: return None
     return None
 
-# [수정] 색상 팔레트 (Tropical Splash)
-# ON AIR: 노랑, 셋팅중/임박: 핫핑크, 대기(행사): 틸(청록), 대기(셋팅): 연분홍
 COLOR_PALETTE = {
     "종료": "#E0E0E0",
-    "ON AIR": "#FEBD17",      # Yellow/Orange (Warning/Active)
-    "셋팅중": "#F94680",      # Hot Pink (Urgent)
-    "셋팅임박": "#F94680",    # Hot Pink
-    "대기(행사)": "#1BC0BA",  # Teal (Fresh)
-    "대기(셋팅)": "#FDB8D9"   # Light Pink (Soft)
+    "ON AIR": "#FEBD17",      
+    "셋팅중": "#F94680",      
+    "셋팅임박": "#F94680",    
+    "대기(행사)": "#1BC0BA",  
+    "대기(셋팅)": "#FDB8D9"   
 }
 
-# [수정] 장소 이름 축약 함수 (예: 제1세미나실 -> 1세)
 def shorten_location(loc_name):
-    # 숫자와 그 뒤에 오는 첫 한글 글자를 찾음
     match = re.search(r'(\d+)\s*([가-힣])', loc_name)
     if match:
         return f"{match.group(1)}{match.group(2)}"
-    # 숫자가 없으면 앞 2글자만 (예: 본관 -> 본관, 대회의실 -> 대회)
     return loc_name[:2]
 
 def extract_schedule(raw_text):
@@ -144,11 +141,20 @@ def extract_schedule(raw_text):
         if len(lines) > 0:
             line1 = lines[0]
             date_match = re.search(r'(\d{1,2})\.(\d{1,2})', line1)
-            if date_match: data['date_obj'] = datetime.date(today_kst.year, int(date_match.group(1)), int(date_match.group(2)))
+            if date_match: 
+                try:
+                    # [수정] 날짜 생성 시 ValueError(예: 13월 99일) 방지
+                    data['date_obj'] = datetime.date(today_kst.year, int(date_match.group(1)), int(date_match.group(2)))
+                except ValueError:
+                    # 날짜가 잘못된 경우 오늘 날짜로 대체하거나 패스
+                    data['date_obj'] = today_kst
+
             if '/' in line1:
                 times_part = line1.split(')')[-1] if ')' in line1 else line1
                 parts = times_part.split('/')
-                data['start'] = parse_time_str(parts[0]); data['setup'] = parse_time_str(parts[1])
+                data['start'] = parse_time_str(parts[0])
+                if len(parts) > 1:
+                    data['setup'] = parse_time_str(parts[1])
 
         if len(lines) > 1:
             line2 = lines[1]
@@ -168,44 +174,47 @@ def extract_schedule(raw_text):
             else: data['simple_remark'] = "-"
 
         if data['start'] and data['setup']:
-            start_dt = KST.localize(datetime.datetime.combine(data['date_obj'], data['start']))
-            setup_dt = KST.localize(datetime.datetime.combine(data['date_obj'], data['setup']))
-            end_dt = start_dt + datetime.timedelta(hours=2)
-            now = datetime.datetime.now(KST)
-            
-            setup_status = "대기(셋팅)"; main_status = "대기(행사)";
-            
-            if now >= end_dt: setup_status = main_status = "종료";
-            elif start_dt <= now < end_dt: setup_status = "종료"; main_status = "ON AIR";
-            elif setup_dt <= now < start_dt: setup_status = "셋팅중"; main_status = "대기(행사)";
-            elif (setup_dt - datetime.timedelta(minutes=30)) <= now < setup_dt: setup_status = "셋팅임박";
-            
-            setup_color = COLOR_PALETTE.get(setup_status, "#90CAF9")
-            main_color = COLOR_PALETTE.get(main_status, "#90CAF9")
+            try:
+                # [수정] datetime 결합 시 발생할 수 있는 잠재적 오류 방지
+                start_dt = KST.localize(datetime.datetime.combine(data['date_obj'], data['start']))
+                setup_dt = KST.localize(datetime.datetime.combine(data['date_obj'], data['setup']))
+                end_dt = start_dt + datetime.timedelta(hours=2)
+                
+                now = datetime.datetime.now(KST)
+                
+                setup_status = "대기(셋팅)"; main_status = "대기(행사)";
+                
+                if now >= end_dt: setup_status = main_status = "종료";
+                elif start_dt <= now < end_dt: setup_status = "종료"; main_status = "ON AIR";
+                elif setup_dt <= now < start_dt: setup_status = "셋팅중"; main_status = "대기(행사)";
+                elif (setup_dt - datetime.timedelta(minutes=30)) <= now < setup_dt: setup_status = "셋팅임박";
+                
+                setup_color = COLOR_PALETTE.get(setup_status, "#90CAF9")
+                main_color = COLOR_PALETTE.get(main_status, "#90CAF9")
 
-            broadcast_style = "color: #D32F2F; font-weight: bold;" if "생중계" in data['simple_remark'] else "color: #388E3C; font-weight: bold;"
-            
-            # 툴팁 내용
-            desc = f"""<div style='text-align: left; font-family: "Nanum Gothic", sans-serif; font-size: 14px; line-height: 1.6;'>
-                <span style='color: #FEBD17; font-size: 16px; font-weight: 800;'>🐻 [{data['location']}]</span><br>
-                <span style='color: #333;'>♥ 의원실: {data['office']}</span><br>
-                <span style='color: #333;'>📝 제　목: {data['title']}</span><br>
-                <span style='color: #333;'>⏰ 시　간: {setup_dt.strftime('%H:%M')} (셋팅) ~ {start_dt.strftime('%H:%M')} (시작)</span><br>
-                <span style='color: #333;'>👤 담당자: {data['staff']}</span><br>
-                <span style='{broadcast_style}'>📺 방　송: {data['simple_remark']}</span></div>"""
+                broadcast_style = "color: #D32F2F; font-weight: bold;" if "생중계" in data['simple_remark'] else "color: #388E3C; font-weight: bold;"
+                
+                desc = f"""<div style='text-align: left; font-family: "Nanum Gothic", sans-serif; font-size: 14px; line-height: 1.6;'>
+                    <span style='color: #FEBD17; font-size: 16px; font-weight: 800;'>🐻 [{data['location']}]</span><br>
+                    <span style='color: #333;'>♥ 의원실: {data['office']}</span><br>
+                    <span style='color: #333;'>📝 제　목: {data['title']}</span><br>
+                    <span style='color: #333;'>⏰ 시　간: {setup_dt.strftime('%H:%M')} (셋팅) ~ {start_dt.strftime('%H:%M')} (시작)</span><br>
+                    <span style='color: #333;'>👤 담당자: {data['staff']}</span><br>
+                    <span style='{broadcast_style}'>📺 방　송: {data['simple_remark']}</span></div>"""
 
-            # [수정] 담당자 표시 로직: 쉼표(,)가 있으면 2명으로 간주하고 줄바꿈
-            if "," in data['staff']:
-                staff_display = data['staff'].replace(",", "<br>")
-            else:
-                staff_display = data['staff']
+                if "," in data['staff']:
+                    staff_display = data['staff'].replace(",", "<br>")
+                else:
+                    staff_display = data['staff']
 
-            schedule_data.append(dict(Task=data['location'], Start=setup_dt, Finish=start_dt, Resource="셋팅", Status=setup_status, Color=setup_color, BarText="SET", Description=desc, Opacity=0.9))
-            schedule_data.append(dict(Task=data['location'], Start=start_dt, Finish=end_dt, Resource="본행사", Status=main_status, Color=main_color, 
-                BarText=staff_display, # 담당자만 표시
-                Description=desc, Opacity=1.0))
-            
-            js_events.append({ "location": data['location'], "setup_ts": setup_dt.timestamp() * 1000 })
+                schedule_data.append(dict(Task=data['location'], Start=setup_dt, Finish=start_dt, Resource="셋팅", Status=setup_status, Color=setup_color, BarText="SET", Description=desc, Opacity=0.9))
+                schedule_data.append(dict(Task=data['location'], Start=start_dt, Finish=end_dt, Resource="본행사", Status=main_status, Color=main_color, 
+                    BarText=staff_display, 
+                    Description=desc, Opacity=1.0))
+                
+                js_events.append({ "location": data['location'], "setup_ts": setup_dt.timestamp() * 1000 })
+            except Exception:
+                continue # 날짜 계산 중 에러 발생 시 해당 건너뜀
 
     return schedule_data, js_events
 
@@ -250,21 +259,18 @@ if timeline_data:
         opacity=0.9
     )
     
-    # [수정] 차트 바 디자인: 입체감(테두리), 글자 크기 키움
     fig.update_traces(
         textposition='inside', insidetextanchor='middle', 
         hovertemplate="%{customdata[0]}<extra></extra>", 
         hoverlabel=dict(font_size=14, font_family="Nanum Gothic", align="left"),
-        textfont=dict(size=18, weight="bold", family="Nanum Gothic"), # 글자 키움
-        marker=dict(line=dict(width=2, color='#333333')) # 입체감 테두리
+        textfont=dict(size=18, weight="bold", family="Nanum Gothic"), 
+        marker=dict(line=dict(width=2, color='#333333')) 
     )
     
-    # [수정] 시간 범위: 05:00 ~ 21:00
     today_str = datetime.datetime.now(KST).strftime("%Y-%m-%d")
     range_x_start = f"{today_str} 05:00"
     range_x_end = f"{today_str} 21:00"
 
-    # [수정] X축: 시간 글씨 크기 20px로 확대
     fig.update_xaxes(
         showgrid=False, 
         showline=True, linewidth=2, linecolor='black', mirror=True, 
@@ -274,33 +280,29 @@ if timeline_data:
         dtick=3600000, 
         tickmode='linear', tickangle=0, 
         side="top", 
-        tickfont=dict(size=20, weight="800", family="Nanum Gothic", color="black"), # 글자 큼지막하게
+        tickfont=dict(size=20, weight="800", family="Nanum Gothic", color="black"), 
         range=[range_x_start, range_x_end], automargin=True
     )
     
     fig.update_yaxes(
         showgrid=False, 
         showline=True, linewidth=2, linecolor='black', mirror=True,
-        showticklabels=False, # 기본 글자 끄고 아래에서 큰 글자로 대체
+        showticklabels=False, 
         title="", 
         autorange="reversed", 
         automargin=True
     )
     
-    # [수정] 좌측 장소 표기: 2글자로 큼지막하게, 박스/배경 없이 글자만
     unique_tasks = df['Task'].unique()
     for i, task in enumerate(unique_tasks):
-        # 가로선 (Row Divider)
         fig.add_hline(y=i + 0.5, line_width=1, line_color="black")
         
-        # 장소 이름 축약 (예: 제1세미나실 -> 1세)
         short_task = shorten_location(task)
         
-        # 글자만 표시 (배경 X, 박스 X)
         fig.add_annotation(
             x=-0.01, xref="paper", y=i, yref="y",
             text=f"<b>{short_task}</b>", showarrow=False,
-            font=dict(size=24, color="black", family="Nanum Gothic"), # 폰트 24px
+            font=dict(size=24, color="black", family="Nanum Gothic"), 
             align="right"
         )
 
@@ -310,7 +312,7 @@ if timeline_data:
         showlegend=True,
         paper_bgcolor='white', 
         plot_bgcolor='white',    
-        margin=dict(t=80, b=100, l=100, r=10), # l=100: 글자 공간
+        margin=dict(t=80, b=100, l=100, r=10),
         hoverlabel_align='left',
         legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5)
     )
