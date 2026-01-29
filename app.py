@@ -120,6 +120,17 @@ COLOR_PALETTE = {
     "대기(셋팅)": "#B0B0B0"   
 }
 
+# [신규] 패턴 맵핑 (입체감용)
+# 셋팅은 빗금(/), 본행사는 솔리드(없음) -> 질감 차이로 입체감 부여
+PATTERN_MAP = {
+    "종료": "",
+    "ON AIR": "",
+    "셋팅중": "/", 
+    "셋팅임박": "/",
+    "대기(행사)": "",
+    "대기(셋팅)": "/" 
+}
+
 def shorten_location(loc_name):
     match = re.search(r'(\d+)\s*([가-힣])', loc_name)
     if match:
@@ -255,46 +266,46 @@ if timeline_data:
 
     dynamic_height = max(800, len(df['Task'].unique()) * 80 + 200)
 
+    # [수정] pattern_shape 추가 (질감 표현)
     fig = px.timeline(
         df, x_start="Start", x_end="Finish", y="ShortTask", 
         color="Status", text="BarText", custom_data=["Description"], 
         color_discrete_map=COLOR_PALETTE,
-        opacity=0.9
+        pattern_shape="Status", pattern_shape_map=PATTERN_MAP, # 텍스처 맵핑
+        opacity=1.0 # 100% 불투명으로 쨍하게
     )
     
-    # [수정] 담당자 글자 크기: 30px로 확대
+    # [수정] 테두리 두께 3px, 검은색 -> 팝아트 느낌 강조
     fig.update_traces(
         textposition='inside', insidetextanchor='middle', 
         hovertemplate="%{customdata[0]}<extra></extra>", 
         hoverlabel=dict(font_size=14, font_family="Do Hyeon", align="left"),
-        textfont=dict(size=30, family="Do Hyeon"), # 30px
-        marker=dict(line=dict(width=2, color='#333333')) 
+        textfont=dict(size=30, family="Do Hyeon"), 
+        marker=dict(line=dict(width=3, color='black')) # 두꺼운 검은 테두리
     )
     
     today_str = datetime.datetime.now(KST).strftime("%Y-%m-%d")
     range_x_start = f"{today_str} 05:00"
     range_x_end = f"{today_str} 21:00"
 
-    # [수정] 시간축 글자 크기: 24px로 확대
     fig.update_xaxes(
         showgrid=False, 
-        showline=True, linewidth=2, linecolor='black', mirror=True, 
-        ticks="inside", tickwidth=2, tickcolor='black', ticklen=10, 
+        showline=True, linewidth=3, linecolor='black', mirror=True, 
+        ticks="inside", tickwidth=3, tickcolor='black', ticklen=10, 
         title="", 
         tickformat="%H:%M", 
         dtick=3600000, 
         tickmode='linear', tickangle=0, 
         side="top", 
-        tickfont=dict(size=24, family="Do Hyeon", color="black"), # 24px
+        tickfont=dict(size=24, family="Do Hyeon", color="black"), 
         range=[range_x_start, range_x_end], automargin=True
     )
     
-    # [수정] 장소 이름 글자 크기: 40px로 확대
     fig.update_yaxes(
         showgrid=False, 
-        showline=True, linewidth=2, linecolor='black', mirror=True,
+        showline=True, linewidth=3, linecolor='black', mirror=True,
         showticklabels=True, 
-        tickfont=dict(size=40, family="Do Hyeon", color="black"), # 40px
+        tickfont=dict(size=40, family="Do Hyeon", color="black"), 
         title="", 
         autorange="reversed", 
         automargin=True
@@ -302,7 +313,7 @@ if timeline_data:
     
     unique_tasks = df['ShortTask'].unique()
     for i in range(len(unique_tasks)):
-        fig.add_hline(y=i + 0.5, line_width=1, line_color="black")
+        fig.add_hline(y=i + 0.5, line_width=2, line_color="black")
 
     fig.update_layout(
         height=dynamic_height, 
@@ -316,14 +327,14 @@ if timeline_data:
     )
     
     now_dt_kst = datetime.datetime.now(KST)
-    fig.add_vline(x=now_dt_kst, line_width=2, line_dash="solid", line_color="red")
+    fig.add_vline(x=now_dt_kst, line_width=3, line_dash="solid", line_color="red")
     
     st.plotly_chart(fig, use_container_width=True, config={'responsive': True})
 else:
     st.info("👈 왼쪽 사이드바에 스케줄을 입력하고 '🥕 스케줄 불러오기'를 누르세요.")
 
 # ==========================================
-# 5. JavaScript (기존 기능 유지)
+# 5. JavaScript (TTS 기능 유지)
 # ==========================================
 js_events_json = json.dumps(js_events)
 js_tts_enabled = str(tts_enabled).lower()
