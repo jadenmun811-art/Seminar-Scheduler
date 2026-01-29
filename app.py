@@ -11,13 +11,13 @@ import pytz
 import streamlit.components.v1 as components
 
 # ==========================================
-# 1. 기본 설정 & CSS (기존 유지)
+# 1. 기본 설정 & CSS (다크모드 대응)
 # ==========================================
 st.set_page_config(layout="wide", page_title="Seminar Schedule (Web) 🐾")
 
 KST = pytz.timezone('Asia/Seoul')
 
-# 상단 파이썬 시간 미리 계산 (로딩 단축)
+# 파이썬 시간 미리 계산
 now_init = datetime.datetime.now(KST)
 wkdays = ["월", "화", "수", "목", "금", "토", "일"]
 init_time_str = f"🕒 {now_init.month}월 {now_init.day}일 {wkdays[now_init.weekday()]}요일 {now_init.strftime('%H:%M:%S')}"
@@ -28,7 +28,10 @@ st.markdown(
     /* 상단 고정 시간바 */
     .fixed-time-bar {{
         position: fixed; top: 3rem; left: 0; width: 100%;
-        background-color: #ffffff; color: #FF5722; text-align: center;
+        /* 배경과 글자색을 테마에 맞게 변수로 설정 */
+        background-color: var(--background-color); 
+        color: #FF5722; 
+        text-align: center;
         padding: 0.1rem 0; font-weight: bold;
         z-index: 99999; border-bottom: 2px solid #FF5722;
         box-shadow: 0px 1px 3px rgba(0,0,0,0.1);
@@ -86,7 +89,7 @@ def set_input_text(text):
     st.session_state['input_text'] = text
 
 # ==========================================
-# 3. 데이터 파싱 (기존 유지)
+# 3. 데이터 파싱 (HTML 색상 변수 적용)
 # ==========================================
 def parse_time_str(time_str):
     try:
@@ -150,13 +153,16 @@ def extract_schedule(raw_text):
             elif setup_dt <= now < start_dt: setup_status = "셋팅중"; setup_color = "#FFF176"; main_status = "대기(행사)"; main_color = "#90CAF9"
             elif (setup_dt - datetime.timedelta(minutes=30)) <= now < setup_dt: setup_status = "셋팅임박"; setup_color = "#81C784"
             
-            broadcast_style = "color: #D32F2F; font-weight: bold;" if "생중계" in data['simple_remark'] else "color: #333333;"
+            # [수정] 방송 문구 색상: 빨강/초록은 다크모드에서도 잘 보이므로 유지
+            broadcast_style = "color: #D32F2F; font-weight: bold;" if "생중계" in data['simple_remark'] else "color: #388E3C; font-weight: bold;"
+            
+            # [핵심 수정] 일반 텍스트 색상을 var(--text-color)로 변경하여 테마 자동 적응
             desc = f"""<div style='text-align: left; font-family: "Malgun Gothic", sans-serif; font-size: 14px; line-height: 1.6;'>
                 <span style='color: #E65100; font-size: 16px; font-weight: bold;'>🐻 [{data['location']}]</span><br>
-                <span style='color: #333333;'>♥ 의원실: {data['office']}</span><br>
-                <span style='color: #333333;'>📝 제　목: {data['title']}</span><br>
-                <span style='color: #333333;'>⏰ 시　간: {setup_dt.strftime('%H:%M')} (셋팅) ~ {start_dt.strftime('%H:%M')} (시작)</span><br>
-                <span style='color: #333333;'>👤 담당자: {data['staff']}</span><br>
+                <span style='color: var(--text-color);'>♥ 의원실: {data['office']}</span><br>
+                <span style='color: var(--text-color);'>📝 제　목: {data['title']}</span><br>
+                <span style='color: var(--text-color);'>⏰ 시　간: {setup_dt.strftime('%H:%M')} (셋팅) ~ {start_dt.strftime('%H:%M')} (시작)</span><br>
+                <span style='color: var(--text-color);'>👤 담당자: {data['staff']}</span><br>
                 <span style='{broadcast_style}'>📺 방　송: {data['simple_remark']}</span></div>"""
 
             schedule_data.append(dict(Task=data['location'], Start=setup_dt, Finish=start_dt, Resource="셋팅", Status=setup_status, Color=setup_color, BarText="SET", Description=desc, Opacity=0.8))
@@ -167,7 +173,7 @@ def extract_schedule(raw_text):
     return schedule_data, js_events
 
 # ==========================================
-# 4. 메인 화면 구성
+# 4. 메인 화면 구성 (차트 색상 자동화)
 # ==========================================
 st.title("✨ SEMINAR ZOO SCHEDULE 🐾")
 
@@ -175,8 +181,6 @@ if 'input_text' not in st.session_state: st.session_state['input_text'] = ""
 
 with st.sidebar:
     st.header("📝 스케줄 관리")
-    
-    # [수정] 토글 대신 가장 확실한 '체크박스' 사용 (무조건 나타남)
     tts_enabled = st.checkbox("🔊 TTS 소리 켜기 (체크 시 켜짐)", value=True)
     st.divider()
 
@@ -211,26 +215,30 @@ if timeline_data:
         opacity=0.9
     )
     
+    # [수정] 툴팁 배경색을 흰색 고정에서 '테마 따름'으로 변경 (bgcolor 삭제)
     fig.update_traces(
         textposition='inside', insidetextanchor='middle', 
         hovertemplate="%{customdata[0]}<extra></extra>", 
-        hoverlabel=dict(bgcolor="white", font_size=14, font_family="Malgun Gothic", align="left")
+        hoverlabel=dict(font_size=14, font_family="Malgun Gothic", align="left")
     )
     
     today_str = datetime.datetime.now(KST).strftime("%Y-%m-%d")
     range_x_start = f"{today_str} 07:00"
     range_x_end = f"{today_str} 22:00"
 
+    # [핵심 수정] Tickfont 색상 고정 제거 -> 테마 자동 적응
     fig.update_xaxes(
         showgrid=True, gridwidth=1, gridcolor='#EEEEEE', title="", 
         tickformat="%H:%M", dtick=1800000, tickmode='linear', tickangle=-45, 
-        side="top", tickfont=dict(size=13, color="#333333", weight="bold"),
+        side="top", 
+        tickfont=dict(size=13, weight="bold"), # color 제거
         range=[range_x_start, range_x_end], automargin=True
     )
     
     fig.update_yaxes(
         showgrid=True, gridwidth=1, gridcolor='#EEEEEE', title="", 
-        autorange="reversed", tickfont=dict(size=15, color="#333333", weight="bold"), 
+        autorange="reversed", 
+        tickfont=dict(size=15, weight="bold"), # color 제거
         automargin=True
     )
     
@@ -251,10 +259,9 @@ else:
     st.info("👈 왼쪽 사이드바에 스케줄을 입력하고 '🥕 스케줄 불러오기'를 누르세요.")
 
 # ==========================================
-# 5. JavaScript (5분전 TTS, 시계, 리로드, 스위치값 전달)
+# 5. JavaScript (기존 로직 유지)
 # ==========================================
 js_events_json = json.dumps(js_events)
-# [핵심] 체크박스 상태(True/False)를 JS로 전달
 js_tts_enabled = str(tts_enabled).lower()
 
 components.html(
@@ -262,7 +269,7 @@ components.html(
     <script>
         const events = {js_events_json};
         const announced = new Set(); 
-        const ttsEnabled = {js_tts_enabled}; // 파이썬 체크박스 값
+        const ttsEnabled = {js_tts_enabled};
 
         function updateSystem() {{
             const now = new Date();
@@ -290,7 +297,6 @@ components.html(
         }}
 
         function speak(text) {{
-            // 체크박스가 켜져있을 때만(true) 소리 재생
             if (ttsEnabled && 'speechSynthesis' in window) {{
                 const utterance = new SpeechSynthesisUtterance(text);
                 utterance.lang = 'ko-KR'; utterance.rate = 1.0;     
