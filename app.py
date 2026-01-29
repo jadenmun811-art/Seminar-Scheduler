@@ -17,50 +17,27 @@ st.set_page_config(layout="wide", page_title="Seminar Schedule (Web) 🐾")
 
 KST = pytz.timezone('Asia/Seoul')
 
-# 상단 파이썬 시간 미리 계산
 now_init = datetime.datetime.now(KST)
 wkdays = ["월", "화", "수", "목", "금", "토", "일"]
-init_time_str = f"{now_init.month}월 {now_init.day}일 {wkdays[now_init.weekday()]}요일 {now_init.strftime('%H:%M:%S')}"
+init_time_str = f"🕒 {now_init.month}월 {now_init.day}일 {wkdays[now_init.weekday()]}요일 {now_init.strftime('%H:%M:%S')}"
 
 st.markdown(
     f"""
     <style>
-    /* 상단 헤더 컨테이너 */
     .header-container {{
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        gap: 20px; 
-        padding: 1rem 0;
-        margin-bottom: 1rem;
-        background-color: white;
-        border-bottom: 3px solid #FF5722;
+        display: flex; justify-content: center; align-items: center; gap: 20px; 
+        padding: 1rem 0; margin-bottom: 1rem; background-color: white; border-bottom: 3px solid #FF5722;
     }}
-    
-    .main-title {{
-        font-size: 2.5rem;
-        font-weight: 900;
-        color: #212121;
-        margin: 0;
-    }}
-    
-    .live-clock {{
-        font-size: 1.8rem;
-        font-weight: bold;
-        color: #FF5722;
-    }}
-
+    .main-title {{ font-size: 2.5rem; font-weight: 900; color: #212121; margin: 0; }}
+    .live-clock {{ font-size: 1.8rem; font-weight: bold; color: #FF5722; }}
     @media only screen and (max-width: 768px) {{
         .header-container {{ flex-direction: column; gap: 5px; }}
         .main-title {{ font-size: 1.5rem; }}
         .live-clock {{ font-size: 1.2rem; }}
-        .block-container {{ padding-top: 1rem; }}
     }}
-    
     .block-container {{ padding-top: 2rem; }}
     div.stButton > button {{ white-space: nowrap; width: 100%; }}
     </style>
-    
     <div class="header-container">
         <div class="main-title">✨ SEMINAR SCHEDULE 🐾</div>
         <div class="live-clock" id="live-clock">{init_time_str}</div>
@@ -243,45 +220,58 @@ if timeline_data:
     today_str = datetime.datetime.now(KST).strftime("%Y-%m-%d")
     range_x_start = f"{today_str} 07:00"
     range_x_end = f"{today_str} 22:00"
-    
-    # [핵심] 1. 세로 격자선(시간 구분선) 진하게 표시
+
+    # [핵심] 시간축 설정 (세로선 제거, 눈금 강화)
     fig.update_xaxes(
-        showgrid=True, gridwidth=1, gridcolor='black', # 검은색 세로선
+        showgrid=False, # 가운데 세로선 제거
         showline=True, linewidth=2, linecolor='black', mirror=True, # 외곽 테두리
+        ticks="inside", tickwidth=2, tickcolor='black', ticklen=10, # 눈금(Tick)을 자처럼 보이게
         title="", 
         tickformat="%H:%M", 
-        dtick=3600000, # 1시간 단위
-        tickmode='linear', 
-        tickangle=0, # [핵심] 0도로 설정하여 가로로 똑바로(중앙 정렬 효과)
+        dtick=3600000, 
+        tickmode='linear', tickangle=0, 
         side="top", 
         tickfont=dict(size=14, weight="bold"),
         range=[range_x_start, range_x_end], automargin=True
     )
     
-    # [핵심] 2. 가로 격자선 - Y축 grid 대신 add_hline으로 직접 그리기 (칸 나누기)
-    # 기존 Y축 그리드는 끄고, 각 항목 사이사이에 선을 그어줌
+    # [핵심] Y축 설정 (기본 글자 끄고, 밑에서 Annotation으로 네모칸 그림)
     fig.update_yaxes(
-        showgrid=False, # 기본 그리드는 끔
-        showline=True, linewidth=2, linecolor='black', mirror=True, # 외곽 테두리
+        showgrid=False, 
+        showline=True, linewidth=2, linecolor='black', mirror=True,
+        showticklabels=False, # 원래 글자 끄기
         title="", 
         autorange="reversed", 
-        tickfont=dict(size=16, weight="bold"),
         automargin=True
     )
     
-    # [핵심] 가로선 직접 그리기 (각 장소 사이에 검은 선)
-    # Plotly Y축 카테고리는 0, 1, 2... 인덱스를 가짐. 그 사이인 0.5, 1.5...에 선을 그음
-    num_locations = len(df['Task'].unique())
-    for i in range(num_locations):
+    # [핵심] 가로선(Row Divider) 및 장소 네모칸(Annotation) 그리기
+    unique_tasks = df['Task'].unique()
+    for i, task in enumerate(unique_tasks):
+        # 1. 가로 구분선 (검은색)
         fig.add_hline(y=i + 0.5, line_width=1, line_color="black")
+        
+        # 2. 좌측 장소 네모칸 (Annotation Box)
+        fig.add_annotation(
+            x=-0.01, xref="paper", # 차트 바로 왼쪽
+            y=i, yref="y",         # 해당 행의 중앙
+            text=f"<b>{task}</b>",
+            showarrow=False,
+            font=dict(size=16, color="black"),
+            bgcolor="#E0E0E0",     # 배경색 (연회색)
+            bordercolor="black",   # 테두리 (검은색)
+            borderwidth=2,         # 두께
+            width=150,             # 박스 너비 고정
+            align="center"
+        )
 
     fig.update_layout(
         height=dynamic_height, 
         font=dict(size=14), 
         showlegend=True,
-        paper_bgcolor='#F5F5F5', # Y축 라벨 영역 배경색
-        plot_bgcolor='white',    # 차트 내부 배경색
-        margin=dict(t=80, b=100, l=10, r=10), 
+        paper_bgcolor='white', 
+        plot_bgcolor='white',    
+        margin=dict(t=80, b=100, l=170, r=10), # l=170: 왼쪽 여백 확보 (네모칸 들어갈 자리)
         hoverlabel_align='left',
         legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5)
     )
