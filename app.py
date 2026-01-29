@@ -143,16 +143,16 @@ def parse_time_str(time_str):
     except: return None
     return None
 
-# 장소별 색상 정의
+# [수정] 장소별 색상 정의 (채도 낮춤 - 차분한 톤)
 COLORS = {
-    "BLUE_MAIN": "#3D64FF",   # 파랑 (소회의실)
-    "BLUE_SETUP": "#8BA4FF",
+    "BLUE_MAIN": "#5E7CE2",   # 차분한 파랑 (Muted Blue)
+    "BLUE_SETUP": "#AAB8E8",  # 연한 차분한 파랑
     
-    "ORANGE_MAIN": "#FFA000", # 노랑/주황 (세미나실)
-    "ORANGE_SETUP": "#FFCC80",
+    "ORANGE_MAIN": "#E6A85E", # 차분한 주황/골드 (Muted Orange)
+    "ORANGE_SETUP": "#F2D1A8", # 연한 차분한 주황
     
-    "GREEN_MAIN": "#46E377",  # 연두 (간담회의실)
-    "GREEN_SETUP": "#B9F6CA",
+    "GREEN_MAIN": "#76C48C",  # 차분한 연두 (Muted Green)
+    "GREEN_SETUP": "#B5E2C1", # 연한 차분한 연두
     
     "GRAY_MAIN": "#9E9E9E",   # 기타
     "GRAY_SETUP": "#E0E0E0"
@@ -226,18 +226,18 @@ def extract_schedule(raw_text):
                 elif setup_dt <= now < start_dt: setup_status = "셋팅중"; main_status = "대기(행사)";
                 elif (setup_dt - datetime.timedelta(minutes=30)) <= now < setup_dt: setup_status = "셋팅임박";
                 
+                # 장소 이름 기반 색상 할당
                 setup_color = get_color_for_location(data['location'], is_setup=True)
                 main_color = get_color_for_location(data['location'], is_setup=False)
 
-                broadcast_style = "color: #D32F2F; font-weight: bold;" if "생중계" in data['simple_remark'] else "color: #388E3C; font-weight: bold;"
-                
+                # 툴팁 내용 (글씨 검은색으로 통일)
                 desc = f"""<div style='text-align: left; font-family: "Do Hyeon", sans-serif; font-size: 14px; line-height: 1.6; color: black;'>
-                    <span style='color: #F94680; font-size: 16px;'>🐻 [{data['location']}]</span><br>
+                    <span style='font-size: 16px; font-weight: bold;'>🐻 [{data['location']}]</span><br>
                     <span>♥ 의원실: {data['office']}</span><br>
                     <span>📝 제　목: {data['title']}</span><br>
                     <span>⏰ 시　간: {setup_dt.strftime('%H:%M')} (셋팅) ~ {start_dt.strftime('%H:%M')} (시작)</span><br>
                     <span>👤 담당자: {data['staff']}</span><br>
-                    <span style='{broadcast_style}'>📺 방　송: {data['simple_remark']}</span></div>"""
+                    <span>📺 방　송: {data['simple_remark']}</span></div>"""
 
                 if "," in data['staff']: staff_display = data['staff'].replace(",", "<br>")
                 else: staff_display = data['staff']
@@ -283,7 +283,7 @@ timeline_data, js_events = extract_schedule(st.session_state['input_text'])
 if timeline_data:
     df = pd.DataFrame(timeline_data)
     df['ShortTask'] = df['Task'].apply(shorten_location)
-    dynamic_height = max(800, len(df['Task'].unique()) * 80 + 200)
+    dynamic_height = max(800, len(df['Task'].unique()) * 80 + 250) # [수정] 상단 여백 위해 높이 추가
 
     fig = px.timeline(
         df, x_start="Start", x_end="Finish", y="ShortTask", 
@@ -291,13 +291,13 @@ if timeline_data:
         opacity=1.0 
     )
     
-    # [스타일] 글씨 흰색, 테두리 없음
+    # [수정] Traces 업데이트 (글씨 검은색으로 변경)
     fig.update_traces(
         marker_color=df['ColorCode'], 
         textposition='inside', insidetextanchor='middle', 
         hovertemplate="%{customdata[0]}<extra></extra>", 
         hoverlabel=dict(font_size=16, font_family="Do Hyeon", align="left", bgcolor="white"),
-        textfont=dict(size=30, family="Do Hyeon", color="white"), 
+        textfont=dict(size=30, family="Do Hyeon", color="black"), # [수정] 글씨 검은색
         marker=dict(line=dict(width=0)) 
     )
     
@@ -306,20 +306,20 @@ if timeline_data:
     range_x_end = f"{today_str} 21:00"
 
     fig.update_xaxes(
-        showgrid=False, # 세로 그리드 OFF
-        showline=True, linewidth=1, linecolor='white', mirror=True, 
-        ticks="inside", tickwidth=2, tickcolor='white', ticklen=5, 
+        showgrid=True, gridwidth=1, gridcolor='#444', # 그리드 다시 표시
+        showline=False, # 기존 라인 숨김
+        ticks="", # 기존 틱 숨김
+        showticklabels=False, # 기존 라벨 숨김 (표 형식으로 대체)
         title="", 
         tickformat="%H:%M", 
         dtick=3600000, 
         tickmode='linear', tickangle=0, 
         side="top", 
-        tickfont=dict(size=24, family="Do Hyeon", color="white"), 
         range=[range_x_start, range_x_end], automargin=True
     )
     
     fig.update_yaxes(
-        showgrid=False, # 가로 그리드 OFF
+        showgrid=False,
         showline=False,
         showticklabels=False, 
         title="", 
@@ -327,11 +327,47 @@ if timeline_data:
         automargin=True
     )
     
+    # [핵심] 표 형식 타임라인 (Table Timeline) 그리기
+    # 05:00부터 21:00까지 시간별로 박스와 텍스트 추가
+    start_hour = 5
+    end_hour = 21
+    
+    for hour in range(start_hour, end_hour + 1):
+        time_str = f"{hour:02d}:00"
+        # 시간대별 X축 좌표 계산
+        x0_time = pd.Timestamp(f"{today_str} {hour:02d}:00")
+        # 마지막 시간(21시)은 21:59까지로 간주하여 박스 마감
+        if hour == end_hour:
+             x1_time = pd.Timestamp(f"{today_str} {hour:02d}:59")
+        else:
+             x1_time = pd.Timestamp(f"{today_str} {hour+1:02d}:00")
+
+        # 1. 표 테두리 박스 (흰색 선)
+        fig.add_shape(
+            type="rect",
+            xref="x", yref="paper",
+            x0=x0_time, x1=x1_time,
+            y0=1.01, y1=1.08, # 차트 상단에 위치
+            line=dict(color="white", width=1),
+            fillcolor="#1E1E1E" # 배경색과 동일하게 채움
+        )
+        
+        # 2. 시간 텍스트 (중앙 정렬)
+        fig.add_annotation(
+            x=x0_time + (x1_time - x0_time) / 2, # 박스 중앙 계산
+            y=1.045, xref="x", yref="paper",
+            text=time_str,
+            showarrow=False,
+            font=dict(size=20, color="white", family="Do Hyeon")
+        )
+
+
+    # 배경 트랙 & 컬러바 & 장소 이름
     unique_tasks = df['ShortTask'].unique()
     for i, short_task in enumerate(unique_tasks):
         loc_main_color = get_color_for_location(short_task, is_setup=False)
         
-        # 1. 배경 트랙 (회색)
+        # 배경 트랙
         fig.add_shape(
             type="rect",
             xref="x", yref="y",
@@ -342,17 +378,17 @@ if timeline_data:
             layer="below"
         )
 
-        # 2. 좌측 컬러바 (위치 더 왼쪽으로 이동)
+        # 좌측 컬러바
         fig.add_shape(
             type="rect",
             xref="paper", yref="y",
-            x0=-0.07, x1=-0.06, # [수정] -0.07 위치로 대폭 이동
+            x0=-0.07, x1=-0.06,
             y0=i-0.4, y1=i+0.4,
             fillcolor=loc_main_color,
             line=dict(width=0),
         )
 
-        # 3. 장소 이름 (위치 조정)
+        # 장소 이름
         fig.add_annotation(
             x=-0.02, xref="paper", y=i, yref="y",
             text=f"<b>{short_task}</b>", showarrow=False,
@@ -360,18 +396,14 @@ if timeline_data:
             align="right"
         )
 
-    # [수정] 현재 시간 깃발 (상단 타임라인 위)
+    # 현재 시간 깃발
     now_dt_kst = datetime.datetime.now(KST)
-    
-    # 1. 빨간 수직선
     fig.add_vline(x=now_dt_kst, line_width=2, line_dash="solid", line_color="red")
-    
-    # 2. 상단 깃발 (역삼각형 텍스트 활용)
     fig.add_annotation(
-        x=now_dt_kst, y=1.0, xref="x", yref="paper", # y=1.0 (Top)
+        x=now_dt_kst, y=1.08, xref="x", yref="paper", # 표 바로 위에 위치
         text="▼", showarrow=False,
         font=dict(size=25, color="red"),
-        yshift=12 # 타임라인 위에 살짝 걸치게
+        yshift=0
     )
 
     fig.update_layout(
@@ -380,7 +412,7 @@ if timeline_data:
         showlegend=False, 
         paper_bgcolor='#1E1E1E', 
         plot_bgcolor='#1E1E1E',  
-        margin=dict(t=80, b=100, l=180, r=10), 
+        margin=dict(t=120, b=100, l=180, r=10), # [수정] 상단 마진(t) 증가 (표 공간 확보)
         hoverlabel_align='left',
     )
     
@@ -389,7 +421,7 @@ else:
     st.info("👈 왼쪽 사이드바에 스케줄을 입력하고 '🥕 스케줄 불러오기'를 누르세요.")
 
 # ==========================================
-# 5. JavaScript
+# 5. JavaScript (기존 기능 유지)
 # ==========================================
 js_events_json = json.dumps(js_events)
 js_tts_enabled = str(tts_enabled).lower()
