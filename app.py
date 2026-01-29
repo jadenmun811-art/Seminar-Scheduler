@@ -111,14 +111,14 @@ def parse_time_str(time_str):
     except: return None
     return None
 
-# [수정] POP & VIVID 컬러 팔레트 적용
+# POP & VIVID 컬러 팔레트
 COLOR_PALETTE = {
-    "종료": "#EEEEEE",        # 배경용 연회색
-    "ON AIR": "#FF007F",      # 네온 핑크 (Neon Pink) - 강력한 강조
-    "셋팅중": "#FF8C00",      # 비비드 오렌지 (Dark Orange) - 눈에 띔
-    "셋팅임박": "#FF8C00",    # 비비드 오렌지
-    "대기(행사)": "#32CD32",  # 라임 그린 (Lime Green) - 산뜻함
-    "대기(셋팅)": "#B0B0B0"   # 쿨 그레이 (Cool Gray) - 차분함
+    "종료": "#EEEEEE",        
+    "ON AIR": "#FF007F",      # 네온 핑크
+    "셋팅중": "#FF8C00",      # 비비드 오렌지
+    "셋팅임박": "#FF8C00",    
+    "대기(행사)": "#32CD32",  # 라임 그린
+    "대기(셋팅)": "#B0B0B0"   # 쿨 그레이
 }
 
 def shorten_location(loc_name):
@@ -209,7 +209,12 @@ def extract_schedule(raw_text):
                     BarText=staff_display, 
                     Description=desc, Opacity=1.0))
                 
-                js_events.append({ "location": data['location'], "setup_ts": setup_dt.timestamp() * 1000 })
+                # [수정] JS로 넘길 데이터에 'staff' 정보 추가 (TTS용)
+                js_events.append({ 
+                    "location": data['location'], 
+                    "setup_ts": setup_dt.timestamp() * 1000,
+                    "staff": data['staff'] 
+                })
             except Exception:
                 continue
 
@@ -296,7 +301,7 @@ if timeline_data:
         
         short_task = shorten_location(task)
         
-        # [핵심 수정] 왼쪽 여백 늘림에 맞춰 텍스트 위치(x) 조정
+        # 장소 이름 텍스트 위치
         fig.add_annotation(
             x=-0.01, xref="paper", y=i, yref="y",
             text=f"<b>{short_task}</b>", showarrow=False,
@@ -304,14 +309,13 @@ if timeline_data:
             align="right"
         )
 
-    # [핵심 수정] margin-l (왼쪽 여백) 200px로 대폭 확대 -> 글자 잘림 방지
     fig.update_layout(
         height=dynamic_height, 
         font=dict(size=14, family="Nanum Gothic"), 
         showlegend=True,
         paper_bgcolor='white', 
         plot_bgcolor='white',    
-        margin=dict(t=80, b=100, l=200, r=10), # l=200으로 설정
+        margin=dict(t=80, b=100, l=200, r=10), # l=200
         hoverlabel_align='left',
         legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5)
     )
@@ -324,7 +328,7 @@ else:
     st.info("👈 왼쪽 사이드바에 스케줄을 입력하고 '🥕 스케줄 불러오기'를 누르세요.")
 
 # ==========================================
-# 5. JavaScript (기존 기능 유지)
+# 5. JavaScript (TTS 멘트 수정됨)
 # ==========================================
 js_events_json = json.dumps(js_events)
 js_tts_enabled = str(tts_enabled).lower()
@@ -353,11 +357,18 @@ components.html(
 
                 if (diffMins >= 4.9 && diffMins <= 5.1) {{
                     const key = event.location + "_5min";
-                    if (!announced.has(key)) {{ speak(event.location + ", 셋팅 시작 5분 전입니다."); announced.add(key); }}
+                    if (!announced.has(key)) {{ 
+                        // [수정] TTS 멘트에 담당자 이름 추가
+                        speak(event.location + ", 셋팅 시작 5분 전입니다. " + event.staff + " 준비해 주세요."); 
+                        announced.add(key); 
+                    }}
                 }}
                 if (diffMins >= -0.1 && diffMins <= 0.1) {{
                     const key = event.location + "_exact";
-                    if (!announced.has(key)) {{ speak(event.location + ", 셋팅 시작 시간입니다."); announced.add(key); }}
+                    if (!announced.has(key)) {{ 
+                        speak(event.location + ", 셋팅 시작 시간입니다. " + event.staff + " 준비해 주세요."); 
+                        announced.add(key); 
+                    }}
                 }}
             }});
 
