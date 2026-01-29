@@ -128,15 +128,12 @@ def parse_time_str(time_str):
     except: return None
     return None
 
-# 장소별 고유 색상 (차분한 톤)
 COLORS = {
     "BLUE_MAIN": "#5E7CE2", "BLUE_SETUP": "#AAB8E8",  
     "ORANGE_MAIN": "#E6A85E", "ORANGE_SETUP": "#F2D1A8", 
     "GREEN_MAIN": "#76C48C", "GREEN_SETUP": "#B5E2C1", 
     "GRAY_MAIN": "#9E9E9E", "GRAY_SETUP": "#E0E0E0"
 }
-
-# [핵심] 지나간 시간을 표시할 회색 (배경보다 조금 밝은 회색)
 PAST_COLOR = "#4A4A4A" 
 
 def shorten_location(loc_name):
@@ -197,33 +194,37 @@ def extract_schedule(raw_text):
                 setup_dt = KST.localize(datetime.datetime.combine(data['date_obj'], data['setup']))
                 end_dt = start_dt + datetime.timedelta(hours=2)
                 
-                # 장소 고유 색상 (진행 중일 때 보일 색상)
-                setup_color_origin = get_color_for_location(data['location'], is_setup=True)
-                main_color_origin = get_color_for_location(data['location'], is_setup=False)
-
-                broadcast_style = "color: #D32F2F; font-weight: bold;" if "생중계" in data['simple_remark'] else "color: #388E3C; font-weight: bold;"
+                now = datetime.datetime.now(KST)
                 
+                setup_status = "대기(셋팅)"; main_status = "대기(행사)";
+                
+                if now >= end_dt: setup_status = main_status = "종료";
+                elif start_dt <= now < end_dt: setup_status = "종료"; main_status = "ON AIR";
+                elif setup_dt <= now < start_dt: setup_status = "셋팅중"; main_status = "대기(행사)";
+                elif (setup_dt - datetime.timedelta(minutes=30)) <= now < setup_dt: setup_status = "셋팅임박";
+                
+                setup_color = get_color_for_location(data['location'], is_setup=True)
+                main_color = get_color_for_location(data['location'], is_setup=False)
+
                 desc = f"""<div style='text-align: left; font-family: "Do Hyeon", sans-serif; font-size: 14px; line-height: 1.6; color: black;'>
                     <span style='font-size: 16px; font-weight: bold;'>🐻 [{data['location']}]</span><br>
                     <span>♥ 의원실: {data['office']}</span><br>
                     <span>📝 제　목: {data['title']}</span><br>
                     <span>⏰ 시　간: {setup_dt.strftime('%H:%M')} (셋팅) ~ {start_dt.strftime('%H:%M')} (시작)</span><br>
                     <span>👤 담당자: {data['staff']}</span><br>
-                    <span style='{broadcast_style}'>📺 방　송: {data['simple_remark']}</span></div>"""
+                    <span>📺 방　송: {data['simple_remark']}</span></div>"""
 
                 if "," in data['staff']: staff_display = data['staff'].replace(",", "<br>")
                 else: staff_display = data['staff']
 
-                # 기본 데이터 저장 (나중에 시간 기준으로 쪼갬)
-                schedule_data.append(dict(Task=data['location'], Start=setup_dt, Finish=start_dt, Resource="셋팅", OriginalColor=setup_color_origin, BarText="SET", Description=desc, Staff=staff_display))
-                schedule_data.append(dict(Task=data['location'], Start=start_dt, Finish=end_dt, Resource="본행사", OriginalColor=main_color_origin, BarText=staff_display, Description=desc, Staff=staff_display))
+                schedule_data.append(dict(Task=data['location'], Start=setup_dt, Finish=start_dt, Resource="셋팅", Status=setup_status, ColorCode=setup_color, BarText="SET", Description=desc, Staff=staff_display))
+                schedule_data.append(dict(Task=data['location'], Start=start_dt, Finish=end_dt, Resource="본행사", Status=main_status, ColorCode=main_color, BarText=staff_display, Description=desc, Staff=staff_display))
                 
                 js_events.append({ "location": data['location'], "setup_ts": setup_dt.timestamp() * 1000, "staff": data['staff'] })
             except Exception: continue
 
     return schedule_data, js_events
 
-# [핵심 기능] 데이터를 현재 시간 기준으로 쪼개는 함수
 def process_progressive_data(data):
     now = datetime.datetime.now(KST)
     processed = []
@@ -232,34 +233,24 @@ def process_progressive_data(data):
         start = item['Start']
         finish = item['Finish']
         
-        # 1. 완전히 지난 일정 -> 회색
         if finish <= now:
             item_copy = item.copy()
             item_copy['ColorCode'] = PAST_COLOR
             processed.append(item_copy)
-            
-        # 2. 완전히 미래 일정 -> 원래 색상
         elif start >= now:
             item_copy = item.copy()
-            item_copy['ColorCode'] = item['OriginalColor']
+            item_copy['ColorCode'] = item['ColorCode'] # Keep original
             processed.append(item_copy)
-            
-        # 3. 진행 중인 일정 -> 쪼개기!
         else:
-            # (A) 과거 부분 (Start ~ Now) -> 회색
             part_past = item.copy()
             part_past['Finish'] = now
             part_past['ColorCode'] = PAST_COLOR
-            # 텍스트는 겹칠 수 있으니, 과거 부분에는 텍스트를 숨기거나 상황에 따라 처리
-            # 여기서는 본행사만 과거 부분에 텍스트 숨김 처리 시도 (선택 사항)
-            part_past['BarText'] = "" # 깔끔하게 과거 부분 텍스트 제거
+            part_past['BarText'] = "" 
             processed.append(part_past)
             
-            # (B) 미래 부분 (Now ~ Finish) -> 원래 색상
             part_future = item.copy()
             part_future['Start'] = now
-            part_future['ColorCode'] = item['OriginalColor']
-            # 미래 부분에 텍스트 유지
+            part_future['ColorCode'] = item['ColorCode'] # Keep original
             processed.append(part_future)
             
     return processed
@@ -295,12 +286,9 @@ with st.sidebar:
 raw_schedule_data, js_events = extract_schedule(st.session_state['input_text'])
 
 if raw_schedule_data:
-    # [핵심] 데이터 가공 (시간 흐름 반영)
     processed_data = process_progressive_data(raw_schedule_data)
     df = pd.DataFrame(processed_data)
     
-    # Task 이름을 줄인 버전으로 매핑 (ShortTask)
-    # process_progressive_data를 거치면서 중복된 Task가 생길 수 있으므로, 원본 데이터에서 매핑을 따옴
     task_map = {item['Task']: shorten_location(item['Task']) for item in raw_schedule_data}
     df['ShortTask'] = df['Task'].map(task_map)
 
@@ -312,19 +300,16 @@ if raw_schedule_data:
         opacity=1.0 
     )
     
-    # [수정] Traces 업데이트 (글씨 검은색)
     fig.update_traces(
-        marker_color=df['ColorCode'], # 가공된 색상(회색/원색) 적용
+        marker_color=df['ColorCode'], 
         textposition='inside', insidetextanchor='middle', 
         hovertemplate="%{customdata[0]}<extra></extra>", 
         hoverlabel=dict(font_size=16, font_family="Do Hyeon", align="left", bgcolor="white"),
-        textfont=dict(size=30, family="Do Hyeon", color="black"), # 검은색 글씨
+        textfont=dict(size=30, family="Do Hyeon", color="black"), 
         marker=dict(line=dict(width=0)) 
     )
     
     now_dt_kst = datetime.datetime.now(KST)
-    
-    # X축 범위: 현재 시간 기준 중앙 고정
     half_window = datetime.timedelta(hours=4)
     range_x_start = now_dt_kst - half_window
     range_x_end = now_dt_kst + half_window
@@ -362,8 +347,7 @@ if raw_schedule_data:
             yanchor="middle", font=dict(size=26, color="white", family="Do Hyeon") 
         )
 
-    # 배경 트랙 & 컬러바 (변하지 않는 고유 색상 사용)
-    # unique tasks 순서를 지키기 위해 원본 리스트 활용
+    # 장소별 요소 그리기 (트랙, 컬러바, 이름, **상태 표시**)
     unique_tasks_ordered = []
     seen = set()
     for item in raw_schedule_data:
@@ -374,26 +358,59 @@ if raw_schedule_data:
 
     for i, full_task_name in enumerate(unique_tasks_ordered):
         short_task = shorten_location(full_task_name)
-        # 중요: 컬러바는 시간과 상관없이 해당 장소의 '고유 색상'을 써야 함 (회색 X)
         loc_main_color = get_color_for_location(full_task_name, is_setup=False)
         
-        # 배경 트랙
+        # 1. 배경 트랙
         fig.add_shape(
             type="rect", xref="x", yref="y",
             x0=pd.Timestamp(f"{today_str} 05:00"), x1=pd.Timestamp(f"{today_str} 21:00"),
             y0=i-0.1, y1=i+0.1, fillcolor="#333333", line=dict(width=0), layer="below"
         )
-        # 좌측 컬러바 (안 겹치게 왼쪽)
+        # 2. 좌측 컬러바
         fig.add_shape(
             type="rect", xref="paper", yref="y",
             x0=-0.07, x1=-0.06, y0=i-0.4, y1=i+0.4,
             fillcolor=loc_main_color, line=dict(width=0),
         )
-        # 장소 이름
+        # 3. 장소 이름
         fig.add_annotation(
             x=-0.02, xref="paper", y=i, yref="y",
             text=f"<b>{short_task}</b>", showarrow=False,
             font=dict(size=45, color="white", family="Do Hyeon"), align="right"
+        )
+        
+        # 4. [신규] 상태 표시 (Status Indicator) - 우측 끝
+        # 해당 장소의 현재 상태 파악
+        # raw_schedule_data에서 해당 장소의 item들 확인
+        items = [x for x in raw_schedule_data if x['Task'] == full_task_name]
+        status_text = "⚪ 대기"
+        status_color = "gray"
+        
+        # 우선순위: ON AIR > 셋팅중 > 셋팅임박 > 대기/종료
+        has_on_air = any(x['Status'] == 'ON AIR' for x in items)
+        has_setting = any(x['Status'] == '셋팅중' for x in items)
+        has_imminent = any(x['Status'] == '셋팅임박' for x in items)
+        all_finished = all(x['Status'] == '종료' for x in items)
+        
+        if has_on_air:
+            status_text = "🔴 ON AIR"
+            status_color = "#FF5252" # Red
+        elif has_setting:
+            status_text = "🟡 셋팅중"
+            status_color = "#FFD740" # Yellow
+        elif has_imminent:
+            status_text = "🟠 셋팅임박"
+            status_color = "#FFAB40" # Orange
+        elif all_finished:
+            status_text = "⚫ 종료"
+            status_color = "#9E9E9E" # Grey
+            
+        fig.add_annotation(
+            x=0.98, xref="paper", y=i, yref="y", # 우측 끝
+            text=status_text, showarrow=False,
+            font=dict(size=24, color=status_color, family="Do Hyeon"),
+            align="right",
+            bgcolor="#1E1E1E", bordercolor=status_color, borderwidth=2, borderpad=4
         )
 
     # 현재 시간 깃발 & 선
