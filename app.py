@@ -12,7 +12,7 @@ import streamlit.components.v1 as components
 import time
 
 # ==========================================
-# 1. 기본 설정 & CSS (보관함 가독성 수정 완료)
+# 1. 기본 설정 & CSS (배민 도현 + 완벽한 다크 모드)
 # ==========================================
 st.set_page_config(layout="wide", page_title="Seminar Schedule (Web) 🐾")
 
@@ -49,28 +49,31 @@ st.markdown(
         border: 1px solid #555 !important;
     }}
     
-    /* [수정] 보관함(Expander) 제목 가독성 해결 */
-    /* 제목 박스 자체를 진한 회색으로, 글씨는 흰색으로 고정 */
+    /* [수정] 보관함(Expander) 가독성 강력 수정 */
+    /* Streamlit 버전에 따라 클래스명이 다를 수 있어 여러 타겟 지정 */
+    .streamlit-expanderHeader, 
     div[data-testid="stExpander"] details > summary {{
         background-color: #333333 !important;
-        color: white !important;
+        color: #FFFFFF !important; /* 흰색 글씨 강제 */
         border: 1px solid #555 !important;
         border-radius: 5px;
     }}
     
-    /* 마우스 올렸을 때도 글씨 잘 보이게 (당근색 포인트) */
+    /* 호버 시 텍스트 색상 변경 (당근색) */
+    .streamlit-expanderHeader:hover,
     div[data-testid="stExpander"] details > summary:hover {{
         color: #FF6E56 !important;
     }}
 
-    /* 제목 옆 화살표 아이콘도 흰색으로 */
+    /* 화살표 아이콘 색상 (흰색) */
+    .streamlit-expanderHeader svg,
     div[data-testid="stExpander"] details > summary svg {{
-        fill: white !important;
-        color: white !important;
+        fill: #FFFFFF !important;
+        color: #FFFFFF !important;
     }}
 
-    /* 보관함 펼쳤을 때 내부 배경 */
-    div[data-testid="stExpander"] details > div {{
+    /* 펼쳤을 때 내부 배경 */
+    div[data-testid="stExpanderDetails"] {{
         background-color: #2C2C2C !important;
         color: white !important;
     }}
@@ -333,16 +336,13 @@ with st.sidebar:
     for key in sorted(history.keys(), reverse=True):
         with st.expander(key):
             st.button("불러오기", key=f"load_{key}", on_click=set_input_text, args=(history[key],))
-            if st.button("삭제", key=f"del_{key}", on_click=delete_history, args=(key,)) 
-            if st.session_state.get(f"del_{key}"): 
-                 st.rerun()
+            # [수정] SyntaxError 해결 (콜론 추가)
+            if st.button("삭제", key=f"del_{key}", on_click=delete_history, args=(key,)):
+                st.rerun()
 
-# 자동 새로고침용 투명 버튼 (공간 차지 최소화)
+# 자동 새로고침용 투명 버튼
 st.markdown(
     """
-    <style>
-    /* Refresh Trigger 버튼 텍스트는 JS가 찾아야 하므로 유지, 스타일로만 숨김 */
-    </style>
     <script>
         const buttons = window.parent.document.querySelectorAll('button');
         for (const btn of buttons) {
