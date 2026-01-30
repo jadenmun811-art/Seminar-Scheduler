@@ -12,13 +12,12 @@ import streamlit.components.v1 as components
 import time
 
 # ==========================================
-# 1. 기본 설정 & CSS
+# 1. 기본 설정 & CSS (배민 도현 + 완벽한 다크 모드)
 # ==========================================
 st.set_page_config(layout="wide", page_title="Seminar Schedule (Web) 🐾")
 
 KST = pytz.timezone('Asia/Seoul')
 
-# [핵심] 현재 시간 계산 (Python 내부용)
 now_init = datetime.datetime.now(KST)
 wkdays = ["월", "화", "수", "목", "금", "토", "일"]
 init_time_str = f"{now_init.month}월 {now_init.day}일 {wkdays[now_init.weekday()]}요일 {now_init.strftime('%H:%M:%S')}"
@@ -28,37 +27,51 @@ st.markdown(
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap');
 
+    /* 전체 앱 배경 */
     .stApp {{
         background-color: #1E1E1E !important;
         color: white !important;
     }}
 
+    /* 사이드바 스타일링 */
     section[data-testid="stSidebar"] {{
         background-color: #1E1E1E !important;
         border-right: 2px solid #333333;
     }}
-    section[data-testid="stSidebar"] * {{
+    /* 사이드바 내부 텍스트 컬러 (잘 보이게) */
+    section[data-testid="stSidebar"] h1, 
+    section[data-testid="stSidebar"] h2, 
+    section[data-testid="stSidebar"] h3, 
+    section[data-testid="stSidebar"] p, 
+    section[data-testid="stSidebar"] span, 
+    section[data-testid="stSidebar"] div,
+    section[data-testid="stSidebar"] label {{
         color: white !important;
     }}
 
+    /* 입력창 디자인 */
     textarea {{
         background-color: #333333 !important;
         color: white !important;
         border: 1px solid #555 !important;
     }}
     
+    /* 보관함(Expander) 스타일 복구 */
     .streamlit-expanderHeader {{
         background-color: #333333 !important;
         color: white !important;
+        border: 1px solid #555 !important;
     }}
     div[data-testid="stExpanderDetails"] {{
         background-color: #2C2C2C !important;
+        color: white !important;
     }}
 
     html, body, [class*="css"] {{
         font-family: 'Do Hyeon', sans-serif !important;
     }}
 
+    /* 상단 헤더 */
     .header-container {{
         display: flex; justify-content: center; align-items: center; gap: 20px; 
         padding: 1.5rem 0; margin-bottom: 2rem; 
@@ -69,23 +82,24 @@ st.markdown(
     .main-title {{ 
         font-size: 3rem; color: #FFFFFF; margin: 0; text-shadow: 2px 2px 0px #000000;
     }}
-    /* 시계용 ID 부여 */
     .live-clock {{ 
         font-size: 2rem; color: #FFFFFF; background: #333;
         padding: 5px 15px; border: 2px solid #777; border-radius: 15px;
     }} 
 
+    /* 모든 버튼 스타일 (당근색) */
     div.stButton > button {{
         background-color: #FF6E56 !important;
         color: white !important;
         font-family: 'Do Hyeon', sans-serif !important;
-        font-size: 24px !important;
+        font-size: 20px !important;
         border: none !important;
         border-radius: 12px !important;
-        padding: 10px 20px !important;
+        padding: 8px 16px !important;
         box-shadow: 0px 4px 0px #C94530 !important;
         transition: all 0.1s;
         width: 100%;
+        margin-top: 5px; /* 버튼 간격 */
     }}
     div.stButton > button:active {{
         transform: translateY(4px); box-shadow: 0px 0px 0px #C94530 !important;
@@ -93,11 +107,6 @@ st.markdown(
 
     .stMarkdown, .stText, h1, h2, h3, p {{ color: white !important; }}
     .block-container {{ padding-top: 2rem; }}
-    
-    /* [숨김 버튼] 자동 새로고침 트리거용 버튼 숨기기 */
-    .refresh-btn-hidden {{
-        display: none;
-    }}
     </style>
     
     <div class="header-container">
@@ -315,26 +324,61 @@ with st.sidebar:
     history = load_history()
     for key in sorted(history.keys(), reverse=True):
         with st.expander(key):
+            # [수정] 보관함 버튼들을 정상적으로 보이게 배치
             st.button("불러오기", key=f"load_{key}", on_click=set_input_text, args=(history[key],))
-            if st.button("삭제", key=f"del_{key}"): delete_history(key); st.rerun()
+            st.button("삭제", key=f"del_{key}", on_click=delete_history, args=(key,)) 
+            # (삭제 버튼 클릭 시 delete_history 호출 후 rerun 필요하지만 여기선 간단히 연결)
+            if st.session_state.get(f"del_{key}"): # 삭제 후 리런 처리용
+                 st.rerun()
 
-# [핵심] 자동 새로고침용 숨겨진 버튼
-# 이 버튼이 눌리면 Streamlit이 Rerun 됩니다. JS가 30초마다 이걸 누릅니다.
-if st.button("Refresh Trigger", key="auto_refresh_btn", help="Hidden trigger"):
-    pass # 그냥 리런만 시키면 됨
-
-# CSS로 버튼 숨기기 (class name 이용)
+# [핵심] 자동 새로고침용 투명 버튼 (공간 차지 최소화 및 숨김)
+# CSS로 투명하게 만듦 (opacity: 0)
 st.markdown(
     """
     <style>
-    div.stButton > button[kind="secondary"] {
-        display: none; /* 화면에서 안 보이게 */
+    /* Refresh Trigger 버튼을 투명하게 숨김 */
+    div.stButton > button[kind="secondary"]:last-child {
+        /* 마지막 버튼(새로고침 트리거)만 타겟팅하려는 시도. 
+           하지만 보관함 버튼도 secondary라 위험함. 
+           따라서 아래처럼 키값 기반이나 텍스트 기반으로 숨기는게 안전함. 
+           JS가 텍스트를 찾으므로 텍스트는 있어야 함. */
     }
-    /* 하지만 Refresh Trigger는 key가 있어서 특정할 수 있음 */
     </style>
-    """,
-    unsafe_allow_html=True
+    """, unsafe_allow_html=True
 )
+
+# 새로고침 트리거 버튼 (텍스트는 JS가 찾아야 하므로 유지, 하지만 화면에선 안 거슬리게)
+# 여기서는 Sidebar 하단에 배치하여 덜 거슬리게 하거나, 
+# main area 맨 아래에 둠.
+if st.button("Refresh Trigger", key="auto_refresh_btn"):
+    pass # 리런 트리거
+
+# 이 버튼을 CSS로 숨김 (display:none은 JS 클릭이 안 먹힐 수 있으므로 opacity 0 처리)
+st.markdown(
+    """
+    <style>
+    /* Refresh Trigger라는 텍스트를 가진 버튼을 찾아서 스타일링 */
+    /* Streamlit은 data-testid가 있으므로 그것을 활용하면 좋지만 가변적임 */
+    /* 간단히: 이 버튼을 맨 아래 두었으므로, 흐름상 큰 문제 없음. 
+       완벽히 숨기려면 JS에서 visibility를 조작하는게 나음. */
+    </style>
+    <script>
+        // Refresh Trigger 버튼을 찾아서 시각적으로만 숨김 (클릭은 가능하게)
+        const buttons = window.parent.document.querySelectorAll('button');
+        for (const btn of buttons) {
+            if (btn.innerText.includes("Refresh Trigger")) {
+                btn.style.opacity = "0";
+                btn.style.height = "0px";
+                btn.style.margin = "0px";
+                btn.style.padding = "0px";
+                btn.style.overflow = "hidden";
+                break;
+            }
+        }
+    </script>
+    """, unsafe_allow_html=True
+)
+
 
 raw_schedule_data, js_events = extract_schedule(st.session_state['input_text'])
 
@@ -446,13 +490,9 @@ components.html(
         const ttsEnabled = {js_tts_enabled};
         let timeSinceLastReload = 0; 
 
-        // 1초마다 실행되는 메인 루프 (시계 + TTS + 리프레시)
         function updateSystem() {{
             const now = new Date();
-            timeSinceLastReload += 1000;
             
-            // 1. 시계 업데이트 (Clock Update)
-            // Python에서 만든 span 태그(clock-target)를 찾아서 내용물 교체
             const clockTarget = window.parent.document.getElementById('clock-target');
             if (clockTarget) {{
                 const timeString = now.toLocaleTimeString('ko-KR', {{ hour12: false }});
@@ -460,7 +500,6 @@ components.html(
                 clockTarget.innerText = dateString + " " + timeString;
             }}
 
-            // 2. TTS 알림 로직
             events.forEach(event => {{
                 const setupTime = new Date(event.setup_ts);
                 const diffMs = setupTime - now;
@@ -482,16 +521,10 @@ components.html(
                 }}
             }});
 
-            // 3. 자동 새로고침 (Auto Refresh) - 30초마다
+            timeSinceLastReload += 1000;
             if (timeSinceLastReload >= 30000) {{
-                // Streamlit의 모든 버튼 중 'Refresh Trigger' 텍스트를 가진 버튼을 찾아서 클릭
-                // 'auto_refresh_btn'은 실제 HTML에서 data-testid나 텍스트로 찾음
                 const buttons = window.parent.document.querySelectorAll('button');
                 for (const btn of buttons) {{
-                    // 우리가 만든 숨겨진 버튼 찾기 (텍스트 내용이나 aria-label로 추정)
-                    // 여기서는 단순히 가장 마지막에 추가된 버튼이거나 특정 속성을 가진 것을 찾기보다,
-                    // 숨겨진 버튼이 클릭되면 리로드됨.
-                    // 간단한 방식: 페이지 내에 Refresh Trigger라는 텍스트를 가진 버튼 찾기
                     if (btn.innerText.includes("Refresh Trigger")) {{
                         btn.click();
                         timeSinceLastReload = 0; 
