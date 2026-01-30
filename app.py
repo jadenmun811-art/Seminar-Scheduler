@@ -12,7 +12,7 @@ import streamlit.components.v1 as components
 import time
 
 # ==========================================
-# 1. 기본 설정 & CSS (배민 도현 + 완벽한 다크 모드)
+# 1. 기본 설정 & CSS (보관함 가독성 수정 완료)
 # ==========================================
 st.set_page_config(layout="wide", page_title="Seminar Schedule (Web) 🐾")
 
@@ -38,14 +38,7 @@ st.markdown(
         background-color: #1E1E1E !important;
         border-right: 2px solid #333333;
     }}
-    /* 사이드바 내부 텍스트 컬러 (잘 보이게) */
-    section[data-testid="stSidebar"] h1, 
-    section[data-testid="stSidebar"] h2, 
-    section[data-testid="stSidebar"] h3, 
-    section[data-testid="stSidebar"] p, 
-    section[data-testid="stSidebar"] span, 
-    section[data-testid="stSidebar"] div,
-    section[data-testid="stSidebar"] label {{
+    section[data-testid="stSidebar"] * {{
         color: white !important;
     }}
 
@@ -56,13 +49,28 @@ st.markdown(
         border: 1px solid #555 !important;
     }}
     
-    /* 보관함(Expander) 스타일 복구 */
-    .streamlit-expanderHeader {{
+    /* [수정] 보관함(Expander) 제목 가독성 해결 */
+    /* 제목 박스 자체를 진한 회색으로, 글씨는 흰색으로 고정 */
+    div[data-testid="stExpander"] details > summary {{
         background-color: #333333 !important;
         color: white !important;
         border: 1px solid #555 !important;
+        border-radius: 5px;
     }}
-    div[data-testid="stExpanderDetails"] {{
+    
+    /* 마우스 올렸을 때도 글씨 잘 보이게 (당근색 포인트) */
+    div[data-testid="stExpander"] details > summary:hover {{
+        color: #FF6E56 !important;
+    }}
+
+    /* 제목 옆 화살표 아이콘도 흰색으로 */
+    div[data-testid="stExpander"] details > summary svg {{
+        fill: white !important;
+        color: white !important;
+    }}
+
+    /* 보관함 펼쳤을 때 내부 배경 */
+    div[data-testid="stExpander"] details > div {{
         background-color: #2C2C2C !important;
         color: white !important;
     }}
@@ -87,7 +95,7 @@ st.markdown(
         padding: 5px 15px; border: 2px solid #777; border-radius: 15px;
     }} 
 
-    /* 모든 버튼 스타일 (당근색) */
+    /* 버튼 스타일 */
     div.stButton > button {{
         background-color: #FF6E56 !important;
         color: white !important;
@@ -99,7 +107,7 @@ st.markdown(
         box-shadow: 0px 4px 0px #C94530 !important;
         transition: all 0.1s;
         width: 100%;
-        margin-top: 5px; /* 버튼 간격 */
+        margin-top: 5px;
     }}
     div.stButton > button:active {{
         transform: translateY(4px); box-shadow: 0px 0px 0px #C94530 !important;
@@ -324,46 +332,18 @@ with st.sidebar:
     history = load_history()
     for key in sorted(history.keys(), reverse=True):
         with st.expander(key):
-            # [수정] 보관함 버튼들을 정상적으로 보이게 배치
             st.button("불러오기", key=f"load_{key}", on_click=set_input_text, args=(history[key],))
-            st.button("삭제", key=f"del_{key}", on_click=delete_history, args=(key,)) 
-            # (삭제 버튼 클릭 시 delete_history 호출 후 rerun 필요하지만 여기선 간단히 연결)
-            if st.session_state.get(f"del_{key}"): # 삭제 후 리런 처리용
+            if st.button("삭제", key=f"del_{key}", on_click=delete_history, args=(key,)) 
+            if st.session_state.get(f"del_{key}"): 
                  st.rerun()
 
-# [핵심] 자동 새로고침용 투명 버튼 (공간 차지 최소화 및 숨김)
-# CSS로 투명하게 만듦 (opacity: 0)
+# 자동 새로고침용 투명 버튼 (공간 차지 최소화)
 st.markdown(
     """
     <style>
-    /* Refresh Trigger 버튼을 투명하게 숨김 */
-    div.stButton > button[kind="secondary"]:last-child {
-        /* 마지막 버튼(새로고침 트리거)만 타겟팅하려는 시도. 
-           하지만 보관함 버튼도 secondary라 위험함. 
-           따라서 아래처럼 키값 기반이나 텍스트 기반으로 숨기는게 안전함. 
-           JS가 텍스트를 찾으므로 텍스트는 있어야 함. */
-    }
-    </style>
-    """, unsafe_allow_html=True
-)
-
-# 새로고침 트리거 버튼 (텍스트는 JS가 찾아야 하므로 유지, 하지만 화면에선 안 거슬리게)
-# 여기서는 Sidebar 하단에 배치하여 덜 거슬리게 하거나, 
-# main area 맨 아래에 둠.
-if st.button("Refresh Trigger", key="auto_refresh_btn"):
-    pass # 리런 트리거
-
-# 이 버튼을 CSS로 숨김 (display:none은 JS 클릭이 안 먹힐 수 있으므로 opacity 0 처리)
-st.markdown(
-    """
-    <style>
-    /* Refresh Trigger라는 텍스트를 가진 버튼을 찾아서 스타일링 */
-    /* Streamlit은 data-testid가 있으므로 그것을 활용하면 좋지만 가변적임 */
-    /* 간단히: 이 버튼을 맨 아래 두었으므로, 흐름상 큰 문제 없음. 
-       완벽히 숨기려면 JS에서 visibility를 조작하는게 나음. */
+    /* Refresh Trigger 버튼 텍스트는 JS가 찾아야 하므로 유지, 스타일로만 숨김 */
     </style>
     <script>
-        // Refresh Trigger 버튼을 찾아서 시각적으로만 숨김 (클릭은 가능하게)
         const buttons = window.parent.document.querySelectorAll('button');
         for (const btn of buttons) {
             if (btn.innerText.includes("Refresh Trigger")) {
@@ -379,6 +359,8 @@ st.markdown(
     """, unsafe_allow_html=True
 )
 
+if st.button("Refresh Trigger", key="auto_refresh_btn"):
+    pass 
 
 raw_schedule_data, js_events = extract_schedule(st.session_state['input_text'])
 
