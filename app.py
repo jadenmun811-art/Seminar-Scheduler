@@ -12,7 +12,7 @@ import streamlit.components.v1 as components
 import time
 
 # ==========================================
-# 1. 기본 설정 & CSS (배민 도현 + 다크 모드 완전 적용)
+# 1. 기본 설정 & CSS (배민 도현 + 완벽한 다크 모드)
 # ==========================================
 st.set_page_config(layout="wide", page_title="Seminar Schedule (Web) 🐾")
 
@@ -27,16 +27,43 @@ st.markdown(
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap');
 
-    /* [수정] 전체 앱 배경색 강제 적용 (.stApp) */
+    /* [수정] 전체 앱 배경색 및 텍스트 컬러 강제 적용 */
     .stApp {{
         background-color: #1E1E1E !important;
         color: white !important;
     }}
 
+    /* [신규] 사이드바 배경색을 어둡게 변경 (글씨가 보이도록) */
+    section[data-testid="stSidebar"] {{
+        background-color: #1E1E1E !important;
+        border-right: 1px solid #333333;
+    }}
+    
+    /* 사이드바 내부 텍스트 요소들 하얀색으로 */
+    section[data-testid="stSidebar"] h1, 
+    section[data-testid="stSidebar"] h2, 
+    section[data-testid="stSidebar"] h3, 
+    section[data-testid="stSidebar"] label, 
+    section[data-testid="stSidebar"] span, 
+    section[data-testid="stSidebar"] p {{
+        color: white !important;
+    }}
+
+    /* [신규] 텍스트 입력창(TextArea) 다크 모드 스타일링 */
+    textarea {{
+        background-color: #333333 !important;
+        color: white !important;
+        border: 1px solid #555 !important;
+    }}
+    
+    /* [신규] 보관함(Expander) 다크 모드 */
+    .streamlit-expanderHeader {{
+        background-color: #333333 !important;
+        color: white !important;
+    }}
+    
     html, body, [class*="css"] {{
         font-family: 'Do Hyeon', sans-serif !important;
-        background-color: #1E1E1E !important;
-        color: white !important;
     }}
 
     /* 상단 헤더 */
@@ -72,7 +99,7 @@ st.markdown(
         transform: translateY(4px); box-shadow: 0px 0px 0px #C94530 !important;
     }}
 
-    /* 텍스트 컬러 조정 */
+    /* 기타 텍스트 컬러 조정 */
     .stMarkdown, .stText, h1, h2, h3, p {{ color: white !important; }}
     
     .block-container {{ padding-top: 2rem; }}
@@ -205,21 +232,11 @@ def extract_schedule(raw_text):
                 setup_dt = KST.localize(datetime.datetime.combine(data['date_obj'], data['setup']))
                 end_dt = start_dt + datetime.timedelta(hours=2)
                 
-                now = datetime.datetime.now(KST)
-                
-                setup_status = "대기(셋팅)"; main_status = "대기(행사)";
-                
-                if now >= end_dt: setup_status = main_status = "종료";
-                elif start_dt <= now < end_dt: setup_status = "종료"; main_status = "ON AIR";
-                elif setup_dt <= now < start_dt: setup_status = "셋팅중"; main_status = "대기(행사)";
-                elif (setup_dt - datetime.timedelta(minutes=30)) <= now < setup_dt: setup_status = "셋팅임박";
-                
                 setup_color = get_color_for_location(data['location'], is_setup=True)
                 main_color = get_color_for_location(data['location'], is_setup=False)
 
                 broadcast_style = "color: #D32F2F; font-weight: bold;" if "생중계" in data['simple_remark'] else "color: #388E3C; font-weight: bold;"
                 
-                # [수정] 툴팁 글자 크기(18px) 및 검은색(#000000) 적용
                 desc = f"""<div style='text-align: left; font-family: "Do Hyeon", sans-serif; font-size: 18px; line-height: 1.6; color: #000000;'>
                     <span style='font-size: 20px; font-weight: bold; color: #FF007F;'>🐻 [{data['location']}]</span><br>
                     <span>♥ 의원실: {data['office']}</span><br>
@@ -231,8 +248,8 @@ def extract_schedule(raw_text):
                 if "," in data['staff']: staff_display = data['staff'].replace(",", "<br>")
                 else: staff_display = data['staff']
 
-                schedule_data.append(dict(Task=data['location'], Start=setup_dt, Finish=start_dt, Resource="셋팅", Status=setup_status, ColorCode=setup_color, BarText="SET", Description=desc, Staff=staff_display))
-                schedule_data.append(dict(Task=data['location'], Start=start_dt, Finish=end_dt, Resource="본행사", Status=main_status, ColorCode=main_color, BarText=staff_display, Description=desc, Staff=staff_display))
+                schedule_data.append(dict(Task=data['location'], Start=setup_dt, Finish=start_dt, Resource="셋팅", Status="대기", ColorCode=setup_color, BarText="SET", Description=desc, Staff=staff_display))
+                schedule_data.append(dict(Task=data['location'], Start=start_dt, Finish=end_dt, Resource="본행사", Status="대기", ColorCode=main_color, BarText=staff_display, Description=desc, Staff=staff_display))
                 
                 js_events.append({ "location": data['location'], "setup_ts": setup_dt.timestamp() * 1000, "staff": data['staff'] })
             except Exception: continue
@@ -247,15 +264,28 @@ def process_progressive_data(data):
         start = item['Start']
         finish = item['Finish']
         
+        # 상태 업데이트 로직 (ON AIR 등) - Status 값 갱신
+        status = "대기"
+        if finish <= now: status = "종료"
+        elif start <= now < finish: 
+            status = "ON AIR" if item['Resource'] == "본행사" else "셋팅중"
+            # 셋팅임박 체크 (Resource가 셋팅이고 시작 30분 전)
+        elif item['Resource'] == "셋팅" and (start - datetime.timedelta(minutes=30)) <= now < start:
+            status = "셋팅임박"
+            
+        item['Status'] = status # 상태 업데이트
+
+        # 게이지 효과 로직
         if finish <= now:
             item_copy = item.copy()
             item_copy['ColorCode'] = PAST_COLOR
             processed.append(item_copy)
         elif start >= now:
             item_copy = item.copy()
-            item_copy['ColorCode'] = item['ColorCode']
+            # 미래 색상은 유지
             processed.append(item_copy)
         else:
+            # 진행 중 (쪼개기)
             part_past = item.copy()
             part_past['Finish'] = now
             part_past['ColorCode'] = PAST_COLOR
@@ -264,7 +294,7 @@ def process_progressive_data(data):
             
             part_future = item.copy()
             part_future['Start'] = now
-            part_future['ColorCode'] = item['ColorCode'] 
+            # 미래 부분 색상 유지
             processed.append(part_future)
             
     return processed
@@ -318,7 +348,7 @@ if raw_schedule_data:
         marker_color=df['ColorCode'], 
         textposition='inside', insidetextanchor='middle', 
         hovertemplate="%{customdata[0]}<extra></extra>", 
-        hoverlabel=dict(font_size=18, font_family="Do Hyeon", align="left", bgcolor="white"), # 툴팁 배경 흰색으로
+        hoverlabel=dict(font_size=18, font_family="Do Hyeon", align="left", bgcolor="white"),
         textfont=dict(size=30, family="Do Hyeon", color="black"), 
         marker=dict(line=dict(width=0)) 
     )
@@ -361,7 +391,7 @@ if raw_schedule_data:
             yanchor="middle", font=dict(size=26, color="white", family="Do Hyeon") 
         )
 
-    # 장소별 요소 (트랙, 컬러바, 이름, 상태표시)
+    # 장소별 요소
     unique_tasks_ordered = []
     seen = set()
     for item in raw_schedule_data:
@@ -390,13 +420,35 @@ if raw_schedule_data:
             font=dict(size=45, color="white", family="Do Hyeon"), align="right"
         )
         
-        items = [x for x in raw_schedule_data if x['Task'] == full_task_name]
+        # 상태 표시 (Status Indicator)
+        items = [x for x in processed_data if x['Task'] == full_task_name]
         status_text = "⚪ 대기"; status_color = "gray"
-        has_on_air = any(x['Status'] == 'ON AIR' for x in items)
-        has_setting = any(x['Status'] == '셋팅중' for x in items)
-        has_imminent = any(x['Status'] == '셋팅임박' for x in items)
-        all_finished = all(x['Status'] == '종료' for x in items)
         
+        # processed_data에서 상태를 다시 확인해야 함 (쪼개진 데이터 포함)
+        # 원본 데이터(raw_schedule_data) 기준으로 상태 파악이 더 정확함 (process_progressive_data에서 Status 업데이트 했으므로 processed_data 사용해도 됨)
+        # 하지만 process_progressive_data는 쪼개진 데이터라 Status가 일관되지 않을 수 있음.
+        # 따라서 raw_schedule_data 기반으로 상태를 다시 계산하거나, 위에서 업데이트된 로직 활용.
+        # 편의상 여기서 다시 계산 (process_progressive_data 함수 내 로직과 동일하게)
+        
+        # 해당 장소의 원본 아이템들 가져오기
+        raw_items = [x for x in raw_schedule_data if x['Task'] == full_task_name]
+        
+        has_on_air = False
+        has_setting = False
+        has_imminent = False
+        all_finished = True
+        
+        for item in raw_items:
+            start = item['Start']; finish = item['Finish']
+            if finish > now_dt_kst: all_finished = False
+            
+            if start <= now_dt_kst < finish:
+                if item['Resource'] == "본행사": has_on_air = True
+                elif item['Resource'] == "셋팅": has_setting = True
+            
+            if item['Resource'] == "셋팅" and (start - datetime.timedelta(minutes=30)) <= now_dt_kst < start:
+                has_imminent = True
+
         if has_on_air: status_text, status_color = "🔴 ON AIR", "#FF5252"
         elif has_setting: status_text, status_color = "🟡 셋팅중", "#FFD740"
         elif has_imminent: status_text, status_color = "🟠 셋팅임박", "#FFAB40"
@@ -429,9 +481,6 @@ if raw_schedule_data:
 else:
     st.info("👈 왼쪽 사이드바에 스케줄을 입력하고 '🥕 스케줄 불러오기'를 누르세요.")
 
-# ==========================================
-# 5. JavaScript (자동 새로고침 로직 개선)
-# ==========================================
 js_events_json = json.dumps(js_events)
 js_tts_enabled = str(tts_enabled).lower()
 
@@ -473,9 +522,7 @@ components.html(
                 }}
             }});
 
-            // [수정] 30초마다 'R' 키 이벤트를 발생시켜 Streamlit 자동 갱신 유도
             if (timeSinceLastReload >= 30000) {{
-                // Streamlit 문서(iframe) 밖의 부모 창에 키 이벤트 전송
                 window.parent.document.dispatchEvent(new KeyboardEvent("keydown", {{key: "r", keyCode: 82, code: "KeyR", bubbles: true}}));
                 timeSinceLastReload = 0; 
             }}
@@ -495,4 +542,3 @@ components.html(
     """,
     height=0
 )
-
