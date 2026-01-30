@@ -12,7 +12,7 @@ import streamlit.components.v1 as components
 import time
 
 # ==========================================
-# 1. 기본 설정 & CSS (배민 도현 + 완벽한 다크 모드)
+# 1. 기본 설정 & CSS (완벽한 다크 모드 + 폰트)
 # ==========================================
 st.set_page_config(layout="wide", page_title="Seminar Schedule (Web) 🐾")
 
@@ -27,41 +27,37 @@ st.markdown(
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap');
 
-    /* [수정] 전체 앱 배경색 및 텍스트 컬러 강제 적용 */
+    /* [핵심] 전체 배경 및 텍스트 컬러 강제 적용 (메인 + 사이드바) */
     .stApp {{
         background-color: #1E1E1E !important;
         color: white !important;
     }}
 
-    /* [신규] 사이드바 배경색을 어둡게 변경 (글씨가 보이도록) */
+    /* 사이드바 배경 및 텍스트 수정 */
     section[data-testid="stSidebar"] {{
         background-color: #1E1E1E !important;
-        border-right: 1px solid #333333;
+        border-right: 2px solid #333333;
     }}
-    
-    /* 사이드바 내부 텍스트 요소들 하얀색으로 */
-    section[data-testid="stSidebar"] h1, 
-    section[data-testid="stSidebar"] h2, 
-    section[data-testid="stSidebar"] h3, 
-    section[data-testid="stSidebar"] label, 
-    section[data-testid="stSidebar"] span, 
-    section[data-testid="stSidebar"] p {{
+    section[data-testid="stSidebar"] * {{
         color: white !important;
     }}
 
-    /* [신규] 텍스트 입력창(TextArea) 다크 모드 스타일링 */
+    /* 입력창(TextArea) 다크 모드 */
     textarea {{
         background-color: #333333 !important;
         color: white !important;
         border: 1px solid #555 !important;
     }}
     
-    /* [신규] 보관함(Expander) 다크 모드 */
+    /* 보관함(Expander) 다크 모드 */
     .streamlit-expanderHeader {{
         background-color: #333333 !important;
         color: white !important;
     }}
-    
+    div[data-testid="stExpanderDetails"] {{
+        background-color: #2C2C2C !important;
+    }}
+
     html, body, [class*="css"] {{
         font-family: 'Do Hyeon', sans-serif !important;
     }}
@@ -99,9 +95,7 @@ st.markdown(
         transform: translateY(4px); box-shadow: 0px 0px 0px #C94530 !important;
     }}
 
-    /* 기타 텍스트 컬러 조정 */
     .stMarkdown, .stText, h1, h2, h3, p {{ color: white !important; }}
-    
     .block-container {{ padding-top: 2rem; }}
     </style>
     
@@ -237,8 +231,9 @@ def extract_schedule(raw_text):
 
                 broadcast_style = "color: #D32F2F; font-weight: bold;" if "생중계" in data['simple_remark'] else "color: #388E3C; font-weight: bold;"
                 
-                desc = f"""<div style='text-align: left; font-family: "Do Hyeon", sans-serif; font-size: 18px; line-height: 1.6; color: #000000;'>
-                    <span style='font-size: 20px; font-weight: bold; color: #FF007F;'>🐻 [{data['location']}]</span><br>
+                # [수정] 툴팁(hover) 스타일: 폰트 크기 20px + 검은색 + 하얀 배경
+                desc = f"""<div style='text-align: left; font-family: "Do Hyeon", sans-serif; font-size: 20px; line-height: 1.6; color: #000000; background-color: #ffffff; padding: 10px; border-radius: 5px;'>
+                    <span style='font-size: 22px; font-weight: bold; color: #FF007F;'>🐻 [{data['location']}]</span><br>
                     <span>♥ 의원실: {data['office']}</span><br>
                     <span>📝 제　목: {data['title']}</span><br>
                     <span>⏰ 시　간: {setup_dt.strftime('%H:%M')} (셋팅) ~ {start_dt.strftime('%H:%M')} (시작)</span><br>
@@ -264,28 +259,24 @@ def process_progressive_data(data):
         start = item['Start']
         finish = item['Finish']
         
-        # 상태 업데이트 로직 (ON AIR 등) - Status 값 갱신
         status = "대기"
         if finish <= now: status = "종료"
         elif start <= now < finish: 
             status = "ON AIR" if item['Resource'] == "본행사" else "셋팅중"
-            # 셋팅임박 체크 (Resource가 셋팅이고 시작 30분 전)
         elif item['Resource'] == "셋팅" and (start - datetime.timedelta(minutes=30)) <= now < start:
             status = "셋팅임박"
             
-        item['Status'] = status # 상태 업데이트
+        item['Status'] = status 
 
-        # 게이지 효과 로직
         if finish <= now:
             item_copy = item.copy()
             item_copy['ColorCode'] = PAST_COLOR
             processed.append(item_copy)
         elif start >= now:
             item_copy = item.copy()
-            # 미래 색상은 유지
+            item_copy['ColorCode'] = item['ColorCode']
             processed.append(item_copy)
         else:
-            # 진행 중 (쪼개기)
             part_past = item.copy()
             part_past['Finish'] = now
             part_past['ColorCode'] = PAST_COLOR
@@ -294,7 +285,7 @@ def process_progressive_data(data):
             
             part_future = item.copy()
             part_future['Start'] = now
-            # 미래 부분 색상 유지
+            part_future['ColorCode'] = item['ColorCode'] 
             processed.append(part_future)
             
     return processed
@@ -348,7 +339,8 @@ if raw_schedule_data:
         marker_color=df['ColorCode'], 
         textposition='inside', insidetextanchor='middle', 
         hovertemplate="%{customdata[0]}<extra></extra>", 
-        hoverlabel=dict(font_size=18, font_family="Do Hyeon", align="left", bgcolor="white"),
+        # [수정] 툴팁 라벨 스타일 강화: 흰색 배경, 검은 글씨, 20px
+        hoverlabel=dict(font_size=20, font_family="Do Hyeon", align="left", bgcolor="white", font_color="black"),
         textfont=dict(size=30, family="Do Hyeon", color="black"), 
         marker=dict(line=dict(width=0)) 
     )
@@ -371,7 +363,6 @@ if raw_schedule_data:
         title="", autorange="reversed", automargin=True
     )
     
-    # 표 형식 타임라인
     start_hour = 5; end_hour = 21
     today_str = now_dt_kst.strftime("%Y-%m-%d")
     
@@ -380,102 +371,48 @@ if raw_schedule_data:
         x0_time = pd.Timestamp(f"{today_str} {hour:02d}:00")
         x1_time = pd.Timestamp(f"{today_str} {hour:02d}:59") if hour == end_hour else pd.Timestamp(f"{today_str} {hour+1:02d}:00")
 
-        fig.add_shape(
-            type="rect", xref="x", yref="paper",
-            x0=x0_time, x1=x1_time, y0=1.01, y1=1.10, 
-            line=dict(color="white", width=1), fillcolor="#1E1E1E" 
-        )
-        fig.add_annotation(
-            x=x0_time + (x1_time - x0_time) / 2, y=1.055, 
-            xref="x", yref="paper", text=time_str, showarrow=False,
-            yanchor="middle", font=dict(size=26, color="white", family="Do Hyeon") 
-        )
+        fig.add_shape(type="rect", xref="x", yref="paper", x0=x0_time, x1=x1_time, y0=1.01, y1=1.10, line=dict(color="white", width=1), fillcolor="#1E1E1E")
+        fig.add_annotation(x=x0_time + (x1_time - x0_time) / 2, y=1.055, xref="x", yref="paper", text=time_str, showarrow=False, yanchor="middle", font=dict(size=26, color="white", family="Do Hyeon"))
 
-    # 장소별 요소
     unique_tasks_ordered = []
     seen = set()
     for item in raw_schedule_data:
         t = item['Task']
-        if t not in seen:
-            unique_tasks_ordered.append(t)
-            seen.add(t)
+        if t not in seen: unique_tasks_ordered.append(t); seen.add(t)
 
     for i, full_task_name in enumerate(unique_tasks_ordered):
         short_task = shorten_location(full_task_name)
         loc_main_color = get_color_for_location(full_task_name, is_setup=False)
         
-        fig.add_shape(
-            type="rect", xref="x", yref="y",
-            x0=pd.Timestamp(f"{today_str} 05:00"), x1=pd.Timestamp(f"{today_str} 21:00"),
-            y0=i-0.1, y1=i+0.1, fillcolor="#333333", line=dict(width=0), layer="below"
-        )
-        fig.add_shape(
-            type="rect", xref="paper", yref="y",
-            x0=-0.07, x1=-0.06, y0=i-0.4, y1=i+0.4,
-            fillcolor=loc_main_color, line=dict(width=0),
-        )
-        fig.add_annotation(
-            x=-0.02, xref="paper", y=i, yref="y",
-            text=f"<b>{short_task}</b>", showarrow=False,
-            font=dict(size=45, color="white", family="Do Hyeon"), align="right"
-        )
+        fig.add_shape(type="rect", xref="x", yref="y", x0=pd.Timestamp(f"{today_str} 05:00"), x1=pd.Timestamp(f"{today_str} 21:00"), y0=i-0.1, y1=i+0.1, fillcolor="#333333", line=dict(width=0), layer="below")
+        fig.add_shape(type="rect", xref="paper", yref="y", x0=-0.07, x1=-0.06, y0=i-0.4, y1=i+0.4, fillcolor=loc_main_color, line=dict(width=0))
+        fig.add_annotation(x=-0.02, xref="paper", y=i, yref="y", text=f"<b>{short_task}</b>", showarrow=False, font=dict(size=45, color="white", family="Do Hyeon"), align="right")
         
-        # 상태 표시 (Status Indicator)
         items = [x for x in processed_data if x['Task'] == full_task_name]
         status_text = "⚪ 대기"; status_color = "gray"
         
-        # processed_data에서 상태를 다시 확인해야 함 (쪼개진 데이터 포함)
-        # 원본 데이터(raw_schedule_data) 기준으로 상태 파악이 더 정확함 (process_progressive_data에서 Status 업데이트 했으므로 processed_data 사용해도 됨)
-        # 하지만 process_progressive_data는 쪼개진 데이터라 Status가 일관되지 않을 수 있음.
-        # 따라서 raw_schedule_data 기반으로 상태를 다시 계산하거나, 위에서 업데이트된 로직 활용.
-        # 편의상 여기서 다시 계산 (process_progressive_data 함수 내 로직과 동일하게)
-        
-        # 해당 장소의 원본 아이템들 가져오기
         raw_items = [x for x in raw_schedule_data if x['Task'] == full_task_name]
-        
-        has_on_air = False
-        has_setting = False
-        has_imminent = False
-        all_finished = True
+        has_on_air = False; has_setting = False; has_imminent = False; all_finished = True
         
         for item in raw_items:
             start = item['Start']; finish = item['Finish']
             if finish > now_dt_kst: all_finished = False
-            
             if start <= now_dt_kst < finish:
                 if item['Resource'] == "본행사": has_on_air = True
                 elif item['Resource'] == "셋팅": has_setting = True
-            
-            if item['Resource'] == "셋팅" and (start - datetime.timedelta(minutes=30)) <= now_dt_kst < start:
-                has_imminent = True
+            if item['Resource'] == "셋팅" and (start - datetime.timedelta(minutes=30)) <= now_dt_kst < start: has_imminent = True
 
         if has_on_air: status_text, status_color = "🔴 ON AIR", "#FF5252"
         elif has_setting: status_text, status_color = "🟡 셋팅중", "#FFD740"
         elif has_imminent: status_text, status_color = "🟠 셋팅임박", "#FFAB40"
         elif all_finished: status_text, status_color = "⚫ 종료", "#9E9E9E"
             
-        fig.add_annotation(
-            x=0.98, xref="paper", y=i, yref="y",
-            text=status_text, showarrow=False,
-            font=dict(size=24, color=status_color, family="Do Hyeon"),
-            align="right", bgcolor="#1E1E1E", bordercolor=status_color, borderwidth=2, borderpad=4
-        )
+        fig.add_annotation(x=0.98, xref="paper", y=i, yref="y", text=status_text, showarrow=False, font=dict(size=24, color=status_color, family="Do Hyeon"), align="right", bgcolor="#1E1E1E", bordercolor=status_color, borderwidth=2, borderpad=4)
 
     fig.add_vline(x=now_dt_kst, line_width=2, line_dash="solid", line_color="red")
-    fig.add_annotation(
-        x=now_dt_kst, y=1.10, xref="x", yref="paper",
-        text="▼", showarrow=False,
-        font=dict(size=25, color="red"), yshift=0
-    )
+    fig.add_annotation(x=now_dt_kst, y=1.10, xref="x", yref="paper", text="▼", showarrow=False, font=dict(size=25, color="red"), yshift=0)
 
-    fig.update_layout(
-        height=dynamic_height, 
-        font=dict(size=14, family="Do Hyeon"), 
-        showlegend=False, 
-        paper_bgcolor='#1E1E1E', plot_bgcolor='#1E1E1E',  
-        margin=dict(t=120, b=100, l=180, r=10), 
-        hoverlabel_align='left',
-    )
+    fig.update_layout(height=dynamic_height, font=dict(size=14, family="Do Hyeon"), showlegend=False, paper_bgcolor='#1E1E1E', plot_bgcolor='#1E1E1E', margin=dict(t=120, b=100, l=180, r=10), hoverlabel_align='left')
     
     st.plotly_chart(fig, use_container_width=True, config={'responsive': True})
 else:
@@ -487,20 +424,26 @@ js_tts_enabled = str(tts_enabled).lower()
 components.html(
     f"""
     <script>
+        // [강력한 자동 새로고침] 30초마다 'R'키 이벤트 강제 전송
+        setInterval(function() {{
+            var e = new KeyboardEvent('keydown', {{
+                bubbles: true,
+                cancelable: true,
+                view: window,
+                key: "r",
+                code: "KeyR",
+                keyCode: 82
+            }});
+            window.parent.document.dispatchEvent(e);
+        }}, 30000);
+
+        // TTS 로직 (기존 유지)
         const events = {js_events_json};
         const announced = new Set(); 
         const ttsEnabled = {js_tts_enabled};
-        let timeSinceLastReload = 0; 
 
-        function updateSystem() {{
+        function checkTime() {{
             const now = new Date();
-            timeSinceLastReload += 1000;
-            
-            const timeString = now.toLocaleTimeString('ko-KR', {{ hour12: false }});
-            const dateString = now.toLocaleDateString('ko-KR', {{ month: 'long', day: 'numeric', weekday: 'long' }});
-            const clockElement = window.parent.document.getElementById('live-clock');
-            if (clockElement) {{ clockElement.innerText = dateString + " " + timeString; }}
-
             events.forEach(event => {{
                 const setupTime = new Date(event.setup_ts);
                 const diffMs = setupTime - now;
@@ -521,11 +464,6 @@ components.html(
                     }}
                 }}
             }});
-
-            if (timeSinceLastReload >= 30000) {{
-                window.parent.document.dispatchEvent(new KeyboardEvent("keydown", {{key: "r", keyCode: 82, code: "KeyR", bubbles: true}}));
-                timeSinceLastReload = 0; 
-            }}
         }}
 
         function speak(text) {{
@@ -536,8 +474,7 @@ components.html(
             }}
         }}
 
-        updateSystem();
-        setInterval(updateSystem, 1000);
+        setInterval(checkTime, 1000);
     </script>
     """,
     height=0
