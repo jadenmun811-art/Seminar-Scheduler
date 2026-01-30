@@ -9,9 +9,10 @@ import asyncio
 import edge_tts
 import pytz
 import streamlit.components.v1 as components
+import time
 
 # ==========================================
-# 1. 기본 설정 & CSS (배민 도현 + 다크 모드)
+# 1. 기본 설정 & CSS (배민 도현 + 다크 모드 완전 적용)
 # ==========================================
 st.set_page_config(layout="wide", page_title="Seminar Schedule (Web) 🐾")
 
@@ -26,12 +27,19 @@ st.markdown(
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap');
 
+    /* [수정] 전체 앱 배경색 강제 적용 (.stApp) */
+    .stApp {{
+        background-color: #1E1E1E !important;
+        color: white !important;
+    }}
+
     html, body, [class*="css"] {{
         font-family: 'Do Hyeon', sans-serif !important;
         background-color: #1E1E1E !important;
         color: white !important;
     }}
 
+    /* 상단 헤더 */
     .header-container {{
         display: flex; justify-content: center; align-items: center; gap: 20px; 
         padding: 1.5rem 0; margin-bottom: 2rem; 
@@ -47,6 +55,7 @@ st.markdown(
         padding: 5px 15px; border: 2px solid #777; border-radius: 15px;
     }} 
 
+    /* 버튼 스타일 */
     div.stButton > button {{
         background-color: #FF6E56 !important;
         color: white !important;
@@ -63,7 +72,9 @@ st.markdown(
         transform: translateY(4px); box-shadow: 0px 0px 0px #C94530 !important;
     }}
 
-    .stMarkdown, .stText, h1, h2, h3 {{ color: white !important; }}
+    /* 텍스트 컬러 조정 */
+    .stMarkdown, .stText, h1, h2, h3, p {{ color: white !important; }}
+    
     .block-container {{ padding-top: 2rem; }}
     </style>
     
@@ -206,13 +217,16 @@ def extract_schedule(raw_text):
                 setup_color = get_color_for_location(data['location'], is_setup=True)
                 main_color = get_color_for_location(data['location'], is_setup=False)
 
-                desc = f"""<div style='text-align: left; font-family: "Do Hyeon", sans-serif; font-size: 14px; line-height: 1.6; color: black;'>
-                    <span style='font-size: 16px; font-weight: bold;'>🐻 [{data['location']}]</span><br>
+                broadcast_style = "color: #D32F2F; font-weight: bold;" if "생중계" in data['simple_remark'] else "color: #388E3C; font-weight: bold;"
+                
+                # [수정] 툴팁 글자 크기(18px) 및 검은색(#000000) 적용
+                desc = f"""<div style='text-align: left; font-family: "Do Hyeon", sans-serif; font-size: 18px; line-height: 1.6; color: #000000;'>
+                    <span style='font-size: 20px; font-weight: bold; color: #FF007F;'>🐻 [{data['location']}]</span><br>
                     <span>♥ 의원실: {data['office']}</span><br>
                     <span>📝 제　목: {data['title']}</span><br>
                     <span>⏰ 시　간: {setup_dt.strftime('%H:%M')} (셋팅) ~ {start_dt.strftime('%H:%M')} (시작)</span><br>
                     <span>👤 담당자: {data['staff']}</span><br>
-                    <span>📺 방　송: {data['simple_remark']}</span></div>"""
+                    <span style='{broadcast_style}'>📺 방　송: {data['simple_remark']}</span></div>"""
 
                 if "," in data['staff']: staff_display = data['staff'].replace(",", "<br>")
                 else: staff_display = data['staff']
@@ -239,7 +253,7 @@ def process_progressive_data(data):
             processed.append(item_copy)
         elif start >= now:
             item_copy = item.copy()
-            item_copy['ColorCode'] = item['ColorCode'] # Keep original
+            item_copy['ColorCode'] = item['ColorCode']
             processed.append(item_copy)
         else:
             part_past = item.copy()
@@ -250,7 +264,7 @@ def process_progressive_data(data):
             
             part_future = item.copy()
             part_future['Start'] = now
-            part_future['ColorCode'] = item['ColorCode'] # Keep original
+            part_future['ColorCode'] = item['ColorCode'] 
             processed.append(part_future)
             
     return processed
@@ -304,7 +318,7 @@ if raw_schedule_data:
         marker_color=df['ColorCode'], 
         textposition='inside', insidetextanchor='middle', 
         hovertemplate="%{customdata[0]}<extra></extra>", 
-        hoverlabel=dict(font_size=16, font_family="Do Hyeon", align="left", bgcolor="white"),
+        hoverlabel=dict(font_size=18, font_family="Do Hyeon", align="left", bgcolor="white"), # 툴팁 배경 흰색으로
         textfont=dict(size=30, family="Do Hyeon", color="black"), 
         marker=dict(line=dict(width=0)) 
     )
@@ -347,7 +361,7 @@ if raw_schedule_data:
             yanchor="middle", font=dict(size=26, color="white", family="Do Hyeon") 
         )
 
-    # 장소별 요소 그리기 (트랙, 컬러바, 이름, **상태 표시**)
+    # 장소별 요소 (트랙, 컬러바, 이름, 상태표시)
     unique_tasks_ordered = []
     seen = set()
     for item in raw_schedule_data:
@@ -360,60 +374,41 @@ if raw_schedule_data:
         short_task = shorten_location(full_task_name)
         loc_main_color = get_color_for_location(full_task_name, is_setup=False)
         
-        # 1. 배경 트랙
         fig.add_shape(
             type="rect", xref="x", yref="y",
             x0=pd.Timestamp(f"{today_str} 05:00"), x1=pd.Timestamp(f"{today_str} 21:00"),
             y0=i-0.1, y1=i+0.1, fillcolor="#333333", line=dict(width=0), layer="below"
         )
-        # 2. 좌측 컬러바
         fig.add_shape(
             type="rect", xref="paper", yref="y",
             x0=-0.07, x1=-0.06, y0=i-0.4, y1=i+0.4,
             fillcolor=loc_main_color, line=dict(width=0),
         )
-        # 3. 장소 이름
         fig.add_annotation(
             x=-0.02, xref="paper", y=i, yref="y",
             text=f"<b>{short_task}</b>", showarrow=False,
             font=dict(size=45, color="white", family="Do Hyeon"), align="right"
         )
         
-        # 4. [신규] 상태 표시 (Status Indicator) - 우측 끝
-        # 해당 장소의 현재 상태 파악
-        # raw_schedule_data에서 해당 장소의 item들 확인
         items = [x for x in raw_schedule_data if x['Task'] == full_task_name]
-        status_text = "⚪ 대기"
-        status_color = "gray"
-        
-        # 우선순위: ON AIR > 셋팅중 > 셋팅임박 > 대기/종료
+        status_text = "⚪ 대기"; status_color = "gray"
         has_on_air = any(x['Status'] == 'ON AIR' for x in items)
         has_setting = any(x['Status'] == '셋팅중' for x in items)
         has_imminent = any(x['Status'] == '셋팅임박' for x in items)
         all_finished = all(x['Status'] == '종료' for x in items)
         
-        if has_on_air:
-            status_text = "🔴 ON AIR"
-            status_color = "#FF5252" # Red
-        elif has_setting:
-            status_text = "🟡 셋팅중"
-            status_color = "#FFD740" # Yellow
-        elif has_imminent:
-            status_text = "🟠 셋팅임박"
-            status_color = "#FFAB40" # Orange
-        elif all_finished:
-            status_text = "⚫ 종료"
-            status_color = "#9E9E9E" # Grey
+        if has_on_air: status_text, status_color = "🔴 ON AIR", "#FF5252"
+        elif has_setting: status_text, status_color = "🟡 셋팅중", "#FFD740"
+        elif has_imminent: status_text, status_color = "🟠 셋팅임박", "#FFAB40"
+        elif all_finished: status_text, status_color = "⚫ 종료", "#9E9E9E"
             
         fig.add_annotation(
-            x=0.98, xref="paper", y=i, yref="y", # 우측 끝
+            x=0.98, xref="paper", y=i, yref="y",
             text=status_text, showarrow=False,
             font=dict(size=24, color=status_color, family="Do Hyeon"),
-            align="right",
-            bgcolor="#1E1E1E", bordercolor=status_color, borderwidth=2, borderpad=4
+            align="right", bgcolor="#1E1E1E", bordercolor=status_color, borderwidth=2, borderpad=4
         )
 
-    # 현재 시간 깃발 & 선
     fig.add_vline(x=now_dt_kst, line_width=2, line_dash="solid", line_color="red")
     fig.add_annotation(
         x=now_dt_kst, y=1.10, xref="x", yref="paper",
@@ -435,7 +430,7 @@ else:
     st.info("👈 왼쪽 사이드바에 스케줄을 입력하고 '🥕 스케줄 불러오기'를 누르세요.")
 
 # ==========================================
-# 5. JavaScript (기존 기능 유지)
+# 5. JavaScript (자동 새로고침 로직 개선)
 # ==========================================
 js_events_json = json.dumps(js_events)
 js_tts_enabled = str(tts_enabled).lower()
@@ -478,13 +473,11 @@ components.html(
                 }}
             }});
 
-            if (timeSinceLastReload >= 60000) {{
-                if (!window.speechSynthesis.speaking) {{
-                    window.parent.document.querySelector(".stApp").dispatchEvent(new KeyboardEvent("keydown", {{key: "r", keyCode: 82, ctrlKey: false, shiftKey: false, altKey: false, metaKey: false, bubbles: true}})); 
-                    timeSinceLastReload = 0;
-                }} else {{
-                    timeSinceLastReload = 55000; 
-                }}
+            // [수정] 30초마다 'R' 키 이벤트를 발생시켜 Streamlit 자동 갱신 유도
+            if (timeSinceLastReload >= 30000) {{
+                // Streamlit 문서(iframe) 밖의 부모 창에 키 이벤트 전송
+                window.parent.document.dispatchEvent(new KeyboardEvent("keydown", {{key: "r", keyCode: 82, code: "KeyR", bubbles: true}}));
+                timeSinceLastReload = 0; 
             }}
         }}
 
@@ -502,3 +495,4 @@ components.html(
     """,
     height=0
 )
+
