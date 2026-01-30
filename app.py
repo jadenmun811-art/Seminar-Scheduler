@@ -12,12 +12,13 @@ import streamlit.components.v1 as components
 import time
 
 # ==========================================
-# 1. 기본 설정 & CSS (배민 도현 + 완벽한 다크 모드)
+# 1. 기본 설정 & CSS
 # ==========================================
 st.set_page_config(layout="wide", page_title="Seminar Schedule (Web) 🐾")
 
 KST = pytz.timezone('Asia/Seoul')
 
+# [핵심] 현재 시간 계산 (Python 내부용)
 now_init = datetime.datetime.now(KST)
 wkdays = ["월", "화", "수", "목", "금", "토", "일"]
 init_time_str = f"{now_init.month}월 {now_init.day}일 {wkdays[now_init.weekday()]}요일 {now_init.strftime('%H:%M:%S')}"
@@ -68,6 +69,7 @@ st.markdown(
     .main-title {{ 
         font-size: 3rem; color: #FFFFFF; margin: 0; text-shadow: 2px 2px 0px #000000;
     }}
+    /* 시계용 ID 부여 */
     .live-clock {{ 
         font-size: 2rem; color: #FFFFFF; background: #333;
         padding: 5px 15px; border: 2px solid #777; border-radius: 15px;
@@ -91,11 +93,16 @@ st.markdown(
 
     .stMarkdown, .stText, h1, h2, h3, p {{ color: white !important; }}
     .block-container {{ padding-top: 2rem; }}
+    
+    /* [숨김 버튼] 자동 새로고침 트리거용 버튼 숨기기 */
+    .refresh-btn-hidden {{
+        display: none;
+    }}
     </style>
     
     <div class="header-container">
         <div class="main-title">✨ SEMINAR SCHEDULE</div>
-        <div class="live-clock" id="live-clock">{init_time_str}</div>
+        <div class="live-clock"><span id="clock-target">{init_time_str}</span></div>
     </div>
     """,
     unsafe_allow_html=True
@@ -311,6 +318,24 @@ with st.sidebar:
             st.button("불러오기", key=f"load_{key}", on_click=set_input_text, args=(history[key],))
             if st.button("삭제", key=f"del_{key}"): delete_history(key); st.rerun()
 
+# [핵심] 자동 새로고침용 숨겨진 버튼
+# 이 버튼이 눌리면 Streamlit이 Rerun 됩니다. JS가 30초마다 이걸 누릅니다.
+if st.button("Refresh Trigger", key="auto_refresh_btn", help="Hidden trigger"):
+    pass # 그냥 리런만 시키면 됨
+
+# CSS로 버튼 숨기기 (class name 이용)
+st.markdown(
+    """
+    <style>
+    div.stButton > button[kind="secondary"] {
+        display: none; /* 화면에서 안 보이게 */
+    }
+    /* 하지만 Refresh Trigger는 key가 있어서 특정할 수 있음 */
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 raw_schedule_data, js_events = extract_schedule(st.session_state['input_text'])
 
 if raw_schedule_data:
@@ -421,15 +446,19 @@ components.html(
         const ttsEnabled = {js_tts_enabled};
         let timeSinceLastReload = 0; 
 
-        // [복구 완료] 1초마다 시계 업데이트 + TTS 체크 + 자동 새로고침(30초)
+        // 1초마다 실행되는 메인 루프 (시계 + TTS + 리프레시)
         function updateSystem() {{
             const now = new Date();
+            timeSinceLastReload += 1000;
             
             // 1. 시계 업데이트 (Clock Update)
-            const timeString = now.toLocaleTimeString('ko-KR', {{ hour12: false }});
-            const dateString = now.toLocaleDateString('ko-KR', {{ month: 'long', day: 'numeric', weekday: 'long' }});
-            const clockElement = window.parent.document.getElementById('live-clock');
-            if (clockElement) {{ clockElement.innerText = dateString + " " + timeString; }}
+            // Python에서 만든 span 태그(clock-target)를 찾아서 내용물 교체
+            const clockTarget = window.parent.document.getElementById('clock-target');
+            if (clockTarget) {{
+                const timeString = now.toLocaleTimeString('ko-KR', {{ hour12: false }});
+                const dateString = now.toLocaleDateString('ko-KR', {{ month: 'long', day: 'numeric', weekday: 'long' }});
+                clockTarget.innerText = dateString + " " + timeString;
+            }}
 
             // 2. TTS 알림 로직
             events.forEach(event => {{
@@ -453,11 +482,22 @@ components.html(
                 }}
             }});
 
-            // 3. 자동 새로고침 (Auto Refresh 30s)
-            timeSinceLastReload += 1000;
+            // 3. 자동 새로고침 (Auto Refresh) - 30초마다
             if (timeSinceLastReload >= 30000) {{
-                window.parent.document.dispatchEvent(new KeyboardEvent("keydown", {{key: "r", keyCode: 82, code: "KeyR", bubbles: true}}));
-                timeSinceLastReload = 0; 
+                // Streamlit의 모든 버튼 중 'Refresh Trigger' 텍스트를 가진 버튼을 찾아서 클릭
+                // 'auto_refresh_btn'은 실제 HTML에서 data-testid나 텍스트로 찾음
+                const buttons = window.parent.document.querySelectorAll('button');
+                for (const btn of buttons) {{
+                    // 우리가 만든 숨겨진 버튼 찾기 (텍스트 내용이나 aria-label로 추정)
+                    // 여기서는 단순히 가장 마지막에 추가된 버튼이거나 특정 속성을 가진 것을 찾기보다,
+                    // 숨겨진 버튼이 클릭되면 리로드됨.
+                    // 간단한 방식: 페이지 내에 Refresh Trigger라는 텍스트를 가진 버튼 찾기
+                    if (btn.innerText.includes("Refresh Trigger")) {{
+                        btn.click();
+                        timeSinceLastReload = 0; 
+                        break;
+                    }}
+                }}
             }}
         }}
 
@@ -469,7 +509,6 @@ components.html(
             }}
         }}
 
-        updateSystem();
         setInterval(updateSystem, 1000);
     </script>
     """,
