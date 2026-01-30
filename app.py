@@ -12,7 +12,7 @@ import streamlit.components.v1 as components
 import time
 
 # ==========================================
-# 1. 기본 설정 & CSS (완벽한 다크 모드 + 폰트)
+# 1. 기본 설정 & CSS (배민 도현 + 완벽한 다크 모드)
 # ==========================================
 st.set_page_config(layout="wide", page_title="Seminar Schedule (Web) 🐾")
 
@@ -27,13 +27,11 @@ st.markdown(
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap');
 
-    /* [핵심] 전체 배경 및 텍스트 컬러 강제 적용 (메인 + 사이드바) */
     .stApp {{
         background-color: #1E1E1E !important;
         color: white !important;
     }}
 
-    /* 사이드바 배경 및 텍스트 수정 */
     section[data-testid="stSidebar"] {{
         background-color: #1E1E1E !important;
         border-right: 2px solid #333333;
@@ -42,14 +40,12 @@ st.markdown(
         color: white !important;
     }}
 
-    /* 입력창(TextArea) 다크 모드 */
     textarea {{
         background-color: #333333 !important;
         color: white !important;
         border: 1px solid #555 !important;
     }}
     
-    /* 보관함(Expander) 다크 모드 */
     .streamlit-expanderHeader {{
         background-color: #333333 !important;
         color: white !important;
@@ -62,7 +58,6 @@ st.markdown(
         font-family: 'Do Hyeon', sans-serif !important;
     }}
 
-    /* 상단 헤더 */
     .header-container {{
         display: flex; justify-content: center; align-items: center; gap: 20px; 
         padding: 1.5rem 0; margin-bottom: 2rem; 
@@ -78,7 +73,6 @@ st.markdown(
         padding: 5px 15px; border: 2px solid #777; border-radius: 15px;
     }} 
 
-    /* 버튼 스타일 */
     div.stButton > button {{
         background-color: #FF6E56 !important;
         color: white !important;
@@ -146,7 +140,7 @@ def set_input_text(text):
     st.session_state['input_text'] = text
 
 # ==========================================
-# 3. 데이터 파싱 및 색상 로직
+# 3. 데이터 파싱
 # ==========================================
 def parse_time_str(time_str):
     try:
@@ -231,7 +225,6 @@ def extract_schedule(raw_text):
 
                 broadcast_style = "color: #D32F2F; font-weight: bold;" if "생중계" in data['simple_remark'] else "color: #388E3C; font-weight: bold;"
                 
-                # [수정] 툴팁(hover) 스타일: 폰트 크기 20px + 검은색 + 하얀 배경
                 desc = f"""<div style='text-align: left; font-family: "Do Hyeon", sans-serif; font-size: 20px; line-height: 1.6; color: #000000; background-color: #ffffff; padding: 10px; border-radius: 5px;'>
                     <span style='font-size: 22px; font-weight: bold; color: #FF007F;'>🐻 [{data['location']}]</span><br>
                     <span>♥ 의원실: {data['office']}</span><br>
@@ -339,7 +332,6 @@ if raw_schedule_data:
         marker_color=df['ColorCode'], 
         textposition='inside', insidetextanchor='middle', 
         hovertemplate="%{customdata[0]}<extra></extra>", 
-        # [수정] 툴팁 라벨 스타일 강화: 흰색 배경, 검은 글씨, 20px
         hoverlabel=dict(font_size=20, font_family="Do Hyeon", align="left", bgcolor="white", font_color="black"),
         textfont=dict(size=30, family="Do Hyeon", color="black"), 
         marker=dict(line=dict(width=0)) 
@@ -424,26 +416,22 @@ js_tts_enabled = str(tts_enabled).lower()
 components.html(
     f"""
     <script>
-        // [강력한 자동 새로고침] 30초마다 'R'키 이벤트 강제 전송
-        setInterval(function() {{
-            var e = new KeyboardEvent('keydown', {{
-                bubbles: true,
-                cancelable: true,
-                view: window,
-                key: "r",
-                code: "KeyR",
-                keyCode: 82
-            }});
-            window.parent.document.dispatchEvent(e);
-        }}, 30000);
-
-        // TTS 로직 (기존 유지)
         const events = {js_events_json};
         const announced = new Set(); 
         const ttsEnabled = {js_tts_enabled};
+        let timeSinceLastReload = 0; 
 
-        function checkTime() {{
+        // [복구 완료] 1초마다 시계 업데이트 + TTS 체크 + 자동 새로고침(30초)
+        function updateSystem() {{
             const now = new Date();
+            
+            // 1. 시계 업데이트 (Clock Update)
+            const timeString = now.toLocaleTimeString('ko-KR', {{ hour12: false }});
+            const dateString = now.toLocaleDateString('ko-KR', {{ month: 'long', day: 'numeric', weekday: 'long' }});
+            const clockElement = window.parent.document.getElementById('live-clock');
+            if (clockElement) {{ clockElement.innerText = dateString + " " + timeString; }}
+
+            // 2. TTS 알림 로직
             events.forEach(event => {{
                 const setupTime = new Date(event.setup_ts);
                 const diffMs = setupTime - now;
@@ -464,6 +452,13 @@ components.html(
                     }}
                 }}
             }});
+
+            // 3. 자동 새로고침 (Auto Refresh 30s)
+            timeSinceLastReload += 1000;
+            if (timeSinceLastReload >= 30000) {{
+                window.parent.document.dispatchEvent(new KeyboardEvent("keydown", {{key: "r", keyCode: 82, code: "KeyR", bubbles: true}}));
+                timeSinceLastReload = 0; 
+            }}
         }}
 
         function speak(text) {{
@@ -474,7 +469,8 @@ components.html(
             }}
         }}
 
-        setInterval(checkTime, 1000);
+        updateSystem();
+        setInterval(updateSystem, 1000);
     </script>
     """,
     height=0
