@@ -49,30 +49,26 @@ st.markdown(
         border: 1px solid #555 !important;
     }}
     
-    /* [수정] 보관함(Expander) 가독성 강력 수정 */
-    /* Streamlit 버전에 따라 클래스명이 다를 수 있어 여러 타겟 지정 */
+    /* 보관함(Expander) 가독성 수정 */
     .streamlit-expanderHeader, 
     div[data-testid="stExpander"] details > summary {{
         background-color: #333333 !important;
-        color: #FFFFFF !important; /* 흰색 글씨 강제 */
+        color: #FFFFFF !important;
         border: 1px solid #555 !important;
         border-radius: 5px;
     }}
     
-    /* 호버 시 텍스트 색상 변경 (당근색) */
     .streamlit-expanderHeader:hover,
     div[data-testid="stExpander"] details > summary:hover {{
         color: #FF6E56 !important;
     }}
 
-    /* 화살표 아이콘 색상 (흰색) */
     .streamlit-expanderHeader svg,
     div[data-testid="stExpander"] details > summary svg {{
         fill: #FFFFFF !important;
         color: #FFFFFF !important;
     }}
 
-    /* 펼쳤을 때 내부 배경 */
     div[data-testid="stExpanderDetails"] {{
         background-color: #2C2C2C !important;
         color: white !important;
@@ -252,13 +248,14 @@ def extract_schedule(raw_text):
 
                 broadcast_style = "color: #D32F2F; font-weight: bold;" if "생중계" in data['simple_remark'] else "color: #388E3C; font-weight: bold;"
                 
-                desc = f"""<div style='text-align: left; font-family: "Do Hyeon", sans-serif; font-size: 20px; line-height: 1.6; color: #000000; background-color: #ffffff; padding: 10px; border-radius: 5px;'>
-                    <span style='font-size: 22px; font-weight: bold; color: #FF007F;'>🐻 [{data['location']}]</span><br>
-                    <span>♥ 의원실: {data['office']}</span><br>
-                    <span>📝 제　목: {data['title']}</span><br>
-                    <span>⏰ 시　간: {setup_dt.strftime('%H:%M')} (셋팅) ~ {start_dt.strftime('%H:%M')} (시작)</span><br>
-                    <span>👤 담당자: {data['staff']}</span><br>
-                    <span style='{broadcast_style}'>📺 방　송: {data['simple_remark']}</span></div>"""
+                # [수정] 툴팁 태그 단순화 (div 제거 -> span/br 만 사용)
+                # Plotly가 인식할 수 있는 기본 태그만 사용
+                desc = f"""<span style='font-size: 22px; font-weight: bold; color: #FF007F;'>🐻 [{data['location']}]</span><br>
+                <span>♥ 의원실: {data['office']}</span><br>
+                <span>📝 제　목: {data['title']}</span><br>
+                <span>⏰ 시　간: {setup_dt.strftime('%H:%M')} (셋팅) ~ {start_dt.strftime('%H:%M')} (시작)</span><br>
+                <span>👤 담당자: {data['staff']}</span><br>
+                <span style='{broadcast_style}'>📺 방　송: {data['simple_remark']}</span>"""
 
                 if "," in data['staff']: staff_display = data['staff'].replace(",", "<br>")
                 else: staff_display = data['staff']
@@ -336,7 +333,7 @@ with st.sidebar:
     for key in sorted(history.keys(), reverse=True):
         with st.expander(key):
             st.button("불러오기", key=f"load_{key}", on_click=set_input_text, args=(history[key],))
-            # [수정] SyntaxError 해결 (콜론 추가)
+            # [수정] 지난번 누락된 콜론(:) 추가됨
             if st.button("삭제", key=f"del_{key}", on_click=delete_history, args=(key,)):
                 st.rerun()
 
@@ -383,6 +380,7 @@ if raw_schedule_data:
         marker_color=df['ColorCode'], 
         textposition='inside', insidetextanchor='middle', 
         hovertemplate="%{customdata[0]}<extra></extra>", 
+        # [수정] 툴팁 스타일은 여기서 정의 (흰 배경, 검은 글씨, 20px)
         hoverlabel=dict(font_size=20, font_family="Do Hyeon", align="left", bgcolor="white", font_color="black"),
         textfont=dict(size=30, family="Do Hyeon", color="black"), 
         marker=dict(line=dict(width=0)) 
